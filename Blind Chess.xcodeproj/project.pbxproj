@@ -16,6 +16,21 @@
 			path = "Blind Chess";
 			sourceTree = "<group>";
 		};
+		BDDA232E302E3D8A0001D156 /* Chess */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Chess;
+			sourceTree = "<group>";
+		};
+		BDDA2330302E3D9E0001D156 /* Speech */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Speech;
+			sourceTree = "<group>";
+		};
+		BDDA2331302E3DB00001D156 /* Audio */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Audio;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +47,9 @@
 		BDDA22BD302E36FE0001D156 = {
 			isa = PBXGroup;
 			children = (
+				BDDA2331302E3DB00001D156 /* Audio */,
+				BDDA2330302E3D9E0001D156 /* Speech */,
+				BDDA232E302E3D8A0001D156 /* Chess */,
 				BDDA22C8302E36FE0001D156 /* Blind Chess */,
 				BDDA22C7302E36FE0001D156 /* Products */,
 			);
@@ -62,6 +80,9 @@
 			);
 			fileSystemSynchronizedGroups = (
 				BDDA22C8302E36FE0001D156 /* Blind Chess */,
+				BDDA232E302E3D8A0001D156 /* Chess */,
+				BDDA2330302E3D9E0001D156 /* Speech */,
+				BDDA2331302E3DB00001D156 /* Audio */,
 			);
 			name = "Blind Chess";
 			packageProductDependencies = (
@@ -256,6 +277,8 @@
 				DEVELOPMENT_TEAM = N8B378YF6W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Listen for chess moves";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Differentiate between pieces and moves";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -288,6 +311,8 @@
 				DEVELOPMENT_TEAM = N8B378YF6W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Listen for chess moves";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Differentiate between pieces and moves";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

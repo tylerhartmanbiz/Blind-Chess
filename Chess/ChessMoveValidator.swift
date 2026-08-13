@@ -14,10 +14,22 @@ struct ChessMoveValidator {
     struct BoardState {
         var board: [[String]] // 8x8 grid, empty string for empty squares
         var isWhiteTurn: Bool
+        var canWhiteCastleKingside: Bool
+        var canWhiteCastleQueenside: Bool
+        var canBlackCastleKingside: Bool
+        var canBlackCastleQueenside: Bool
         
-        init(board: [[String]], isWhiteTurn: Bool) {
+        init(board: [[String]], isWhiteTurn: Bool, 
+             canWhiteCastleKingside: Bool = true, 
+             canWhiteCastleQueenside: Bool = true,
+             canBlackCastleKingside: Bool = true,
+             canBlackCastleQueenside: Bool = true) {
             self.board = board
             self.isWhiteTurn = isWhiteTurn
+            self.canWhiteCastleKingside = canWhiteCastleKingside
+            self.canWhiteCastleQueenside = canWhiteCastleQueenside
+            self.canBlackCastleKingside = canBlackCastleKingside
+            self.canBlackCastleQueenside = canBlackCastleQueenside
         }
         
         /// Get piece at position (row, col)
@@ -47,6 +59,26 @@ struct ChessMoveValidator {
         func isOpponentPiece(row: Int, col: Int) -> Bool {
             guard let piece = pieceAt(row: row, col: col) else { return false }
             return isWhitePiece(piece) != isWhiteTurn
+        }
+        
+        /// Make a move on the board (mutating)
+        mutating func makeMove(fromRow: Int, fromCol: Int, toRow: Int, toCol: Int) {
+            let piece = board[fromRow][fromCol]
+            board[toRow][toCol] = piece
+            board[fromRow][fromCol] = ""
+        }
+        
+        /// Find the king's position for a given color
+        func findKing(forWhite: Bool) -> (row: Int, col: Int)? {
+            let kingChar = forWhite ? "K" : "k"
+            for row in 0..<8 {
+                for col in 0..<8 {
+                    if board[row][col] == kingChar {
+                        return (row, col)
+                    }
+                }
+            }
+            return nil
         }
     }
     
@@ -97,22 +129,45 @@ struct ChessMoveValidator {
         let pieceType = piece.lowercased()
         let isCapture = boardState.isOpponentPiece(row: toRow, col: toCol)
         
+        let basicValidation: ValidationResult
         switch pieceType {
         case "p":
-            return validatePawnMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, isCapture: isCapture, boardState: boardState)
+            basicValidation = validatePawnMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, isCapture: isCapture, boardState: boardState)
         case "n":
-            return validateKnightMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol)
+            basicValidation = validateKnightMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol)
         case "b":
-            return validateBishopMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
+            basicValidation = validateBishopMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
         case "r":
-            return validateRookMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
+            basicValidation = validateRookMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
         case "q":
-            return validateQueenMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
+            basicValidation = validateQueenMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
         case "k":
-            return validateKingMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol)
+            basicValidation = validateKingMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
         default:
             return .invalid("Unknown piece type")
         }
+        
+        // If basic move is invalid, return immediately
+        if !basicValidation.isValid {
+            return basicValidation
+        }
+        
+        // Simulate the move and check if it leaves/puts king in check
+        var simulatedState = boardState
+        simulatedState.makeMove(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol)
+        
+        if isKingInCheck(boardState: simulatedState, forWhite: boardState.isWhiteTurn) {
+            return .invalid("Move leaves king in check")
+        }
+        
+        // For king moves, also check if moving into an attacked square
+        if pieceType == "k" {
+            if isSquareUnderAttack(row: toRow, col: toCol, boardState: boardState, byWhite: !boardState.isWhiteTurn) {
+                return .invalid("Cannot move king into check")
+            }
+        }
+        
+        return .valid
     }
     
     // MARK: - Piece-Specific Validation
@@ -233,16 +288,100 @@ struct ChessMoveValidator {
         return .valid
     }
     
-    private static func validateKingMove(fromRow: Int, fromCol: Int, toRow: Int, toCol: Int) -> ValidationResult {
+    private static func validateKingMove(fromRow: Int, fromCol: Int, toRow: Int, toCol: Int, boardState: BoardState) -> ValidationResult {
         let rowDiff = abs(toRow - fromRow)
         let colDiff = abs(toCol - fromCol)
+        
+        // Check for castling (king moves 2 squares horizontally)
+        if rowDiff == 0 && colDiff == 2 {
+            return validateCastling(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
+        }
         
         // King moves one square in any direction
         guard rowDiff <= 1 && colDiff <= 1 && (rowDiff + colDiff) > 0 else {
             return .invalid("Kings move one square in any direction")
         }
         
-        // TODO: Castling would go here
+        return .valid
+    }
+    
+    private static func validateCastling(fromRow: Int, fromCol: Int, toRow: Int, toCol: Int, boardState: BoardState) -> ValidationResult {
+        // Castling only on back rank
+        let expectedRow = boardState.isWhiteTurn ? 7 : 0
+        guard fromRow == expectedRow && toRow == expectedRow else {
+            return .invalid("Cannot castle from this position")
+        }
+        
+        // King must start on e-file (column 4)
+        guard fromCol == 4 else {
+            return .invalid("King not in starting position")
+        }
+        
+        let isKingside = toCol > fromCol
+        
+        // Check castling rights
+        if boardState.isWhiteTurn {
+            if isKingside && !boardState.canWhiteCastleKingside {
+                return .invalid("White cannot castle kingside")
+            }
+            if !isKingside && !boardState.canWhiteCastleQueenside {
+                return .invalid("White cannot castle queenside")
+            }
+        } else {
+            if isKingside && !boardState.canBlackCastleKingside {
+                return .invalid("Black cannot castle kingside")
+            }
+            if !isKingside && !boardState.canBlackCastleQueenside {
+                return .invalid("Black cannot castle queenside")
+            }
+        }
+        
+        // King cannot be in check
+        if isKingInCheck(boardState: boardState, forWhite: boardState.isWhiteTurn) {
+            return .invalid("Cannot castle while in check")
+        }
+        
+        // Check path is clear and not under attack
+        if isKingside {
+            // Kingside: check f and g files (columns 5 and 6)
+            // Rook should be on h file (column 7)
+            guard boardState.isEmpty(row: fromRow, col: 5) && 
+                  boardState.isEmpty(row: fromRow, col: 6) else {
+                return .invalid("Path is blocked")
+            }
+            
+            // Verify rook is there
+            let rookChar = boardState.isWhiteTurn ? "R" : "r"
+            guard boardState.pieceAt(row: fromRow, col: 7) == rookChar else {
+                return .invalid("Rook not in position")
+            }
+            
+            // King cannot move through check (f and g squares)
+            if isSquareUnderAttack(row: fromRow, col: 5, boardState: boardState, byWhite: !boardState.isWhiteTurn) ||
+               isSquareUnderAttack(row: fromRow, col: 6, boardState: boardState, byWhite: !boardState.isWhiteTurn) {
+                return .invalid("Cannot castle through check")
+            }
+        } else {
+            // Queenside: check b, c, and d files (columns 1, 2, and 3)
+            // Rook should be on a file (column 0)
+            guard boardState.isEmpty(row: fromRow, col: 1) && 
+                  boardState.isEmpty(row: fromRow, col: 2) &&
+                  boardState.isEmpty(row: fromRow, col: 3) else {
+                return .invalid("Path is blocked")
+            }
+            
+            // Verify rook is there
+            let rookChar = boardState.isWhiteTurn ? "R" : "r"
+            guard boardState.pieceAt(row: fromRow, col: 0) == rookChar else {
+                return .invalid("Rook not in position")
+            }
+            
+            // King cannot move through check (c and d squares)
+            if isSquareUnderAttack(row: fromRow, col: 2, boardState: boardState, byWhite: !boardState.isWhiteTurn) ||
+               isSquareUnderAttack(row: fromRow, col: 3, boardState: boardState, byWhite: !boardState.isWhiteTurn) {
+                return .invalid("Cannot castle through check")
+            }
+        }
         
         return .valid
     }
@@ -290,6 +429,85 @@ struct ChessMoveValidator {
         return true
     }
     
+    // MARK: - Check Detection
+    
+    /// Check if the king is in check
+    private static func isKingInCheck(boardState: BoardState, forWhite: Bool) -> Bool {
+        guard let kingPos = boardState.findKing(forWhite: forWhite) else {
+            return false // No king found (shouldn't happen)
+        }
+        
+        return isSquareUnderAttack(row: kingPos.row, col: kingPos.col, boardState: boardState, byWhite: !forWhite)
+    }
+    
+    /// Check if a square is under attack by the specified color
+    private static func isSquareUnderAttack(row: Int, col: Int, boardState: BoardState, byWhite: Bool) -> Bool {
+        // Check all opponent pieces to see if they can attack this square
+        for r in 0..<8 {
+            for c in 0..<8 {
+                guard let piece = boardState.pieceAt(row: r, col: c) else { continue }
+                
+                // Check if this is an opponent piece
+                if boardState.isWhitePiece(piece) != byWhite { continue }
+                
+                // Check if this piece can attack the target square
+                if canPieceAttack(piece: piece, fromRow: r, fromCol: c, toRow: row, toCol: col, boardState: boardState) {
+                    return true
+                }
+            }
+        }
+        
+        return false
+    }
+    
+    /// Check if a piece can attack a specific square
+    private static func canPieceAttack(piece: String, fromRow: Int, fromCol: Int, toRow: Int, toCol: Int, boardState: BoardState) -> Bool {
+        let pieceType = piece.lowercased()
+        let rowDiff = abs(toRow - fromRow)
+        let colDiff = abs(toCol - fromCol)
+        
+        switch pieceType {
+        case "p":
+            // Pawns attack diagonally
+            let direction = boardState.isWhitePiece(piece) ? -1 : 1
+            return (toRow - fromRow == direction) && colDiff == 1
+            
+        case "n":
+            // Knight L-shape
+            return (rowDiff == 2 && colDiff == 1) || (rowDiff == 1 && colDiff == 2)
+            
+        case "b":
+            // Bishop diagonal
+            if rowDiff != colDiff || rowDiff == 0 { return false }
+            return isDiagonalPathClear(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
+            
+        case "r":
+            // Rook straight
+            if fromRow != toRow && fromCol != toCol { return false }
+            if fromRow == toRow && fromCol == toCol { return false }
+            return isStraightPathClear(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
+            
+        case "q":
+            // Queen diagonal or straight
+            let isDiag = rowDiff == colDiff && rowDiff > 0
+            let isStraight = (fromRow == toRow || fromCol == toCol) && (fromRow != toRow || fromCol != toCol)
+            
+            if isDiag {
+                return isDiagonalPathClear(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
+            } else if isStraight {
+                return isStraightPathClear(fromRow: fromRow, fromCol: fromCol, toRow: toRow, toCol: toCol, boardState: boardState)
+            }
+            return false
+            
+        case "k":
+            // King one square
+            return rowDiff <= 1 && colDiff <= 1 && (rowDiff + colDiff) > 0
+            
+        default:
+            return false
+        }
+    }
+    
     // MARK: - Validation Result
     
     enum ValidationResult {
@@ -322,6 +540,28 @@ extension ChessMoveValidator.BoardState {
             return nil
         }
         
-        return ChessMoveValidator.BoardState(board: boardArray, isWhiteTurn: isWhiteSide)
+        // Detect castling rights based on piece positions
+        // If king and rooks are in starting positions, assume castling is available
+        let whiteKingOnE1 = boardArray[7][4] == "K"
+        let whiteRookOnH1 = boardArray[7][7] == "R"
+        let whiteRookOnA1 = boardArray[7][0] == "R"
+        
+        let blackKingOnE8 = boardArray[0][4] == "k"
+        let blackRookOnH8 = boardArray[0][7] == "r"
+        let blackRookOnA8 = boardArray[0][0] == "r"
+        
+        let canWhiteCastleKingside = whiteKingOnE1 && whiteRookOnH1
+        let canWhiteCastleQueenside = whiteKingOnE1 && whiteRookOnA1
+        let canBlackCastleKingside = blackKingOnE8 && blackRookOnH8
+        let canBlackCastleQueenside = blackKingOnE8 && blackRookOnA8
+        
+        return ChessMoveValidator.BoardState(
+            board: boardArray, 
+            isWhiteTurn: isWhiteSide,
+            canWhiteCastleKingside: canWhiteCastleKingside,
+            canWhiteCastleQueenside: canWhiteCastleQueenside,
+            canBlackCastleKingside: canBlackCastleKingside,
+            canBlackCastleQueenside: canBlackCastleQueenside
+        )
     }
 }

@@ -16,6 +16,12 @@ struct ChessMoveParser {
         let lowercased = transcript.lowercased()
         print("🔍 Parsing: \(transcript)")
         
+        // Check for castling commands first
+        if let castleMove = parseCastling(in: lowercased) {
+            print("✅ Parsed castling: \(castleMove.description)")
+            return castleMove
+        }
+        
         var piece: String? = nil
         var file: String? = nil
         var rank: String? = nil
@@ -38,6 +44,31 @@ struct ChessMoveParser {
         let parsedMove = ParsedMove(piece: piece, file: finalFile, rank: finalRank)
         print("✅ Parsed: \(parsedMove.description)")
         return parsedMove
+    }
+    
+    // MARK: - Parse Castling
+    
+    private static func parseCastling(in text: String) -> ParsedMove? {
+        // Check for castling keywords
+        let hasCastle = text.contains("castle") || text.contains("kassle") || text.contains("cassel")
+        guard hasCastle else { return nil }
+        
+        // Check for queenside
+        let isQueenside = text.contains("queen") || text.contains("queenside") || 
+                          text.contains("long") || text.contains("left")
+        
+        if isQueenside {
+            // Queenside castling: King e1 -> c1 (or e8 -> c8 for black)
+            // Determine if white or black based on rank in text, default to white (rank 1)
+            let rank = text.contains("8") ? "8" : "1"
+            print("  🏰 Detected queenside castling")
+            return ParsedMove(piece: "King", file: "c", rank: rank)
+        } else {
+            // Kingside castling (default): King e1 -> g1 (or e8 -> g8 for black)
+            let rank = text.contains("8") ? "8" : "1"
+            print("  🏰 Detected kingside castling")
+            return ParsedMove(piece: "King", file: "g", rank: rank)
+        }
     }
     
     // MARK: - Find Piece
