@@ -85,7 +85,49 @@ struct ChessJSBridge {
                     }
                 }
             });
-            return { board: board, isWhiteSide: isWhiteSide };
+            
+            // Try to detect en passant target square from highlighted moves
+            let enPassantTarget = null;
+            const highlightedSquares = document.querySelectorAll('.highlight');
+            
+            // Check if the last move was a two-square pawn advance
+            if (highlightedSquares.length === 2) {
+                const squares = Array.from(highlightedSquares).map(sq => {
+                    const classes = sq.className.split(' ');
+                    for (let cls of classes) {
+                        if (cls.startsWith('square-')) {
+                            return cls.replace('square-', '');
+                        }
+                    }
+                    return null;
+                }).filter(s => s);
+                
+                if (squares.length === 2) {
+                    const from = squares[0];
+                    const to = squares[1];
+                    const fromFile = from[0];
+                    const fromRank = parseInt(from[1]);
+                    const toFile = to[0];
+                    const toRank = parseInt(to[1]);
+                    
+                    // Check if this was a two-square pawn move
+                    if (fromFile === toFile && Math.abs(toRank - fromRank) === 2) {
+                        // Check if there's a pawn at the destination
+                        const destRow = 8 - toRank;
+                        const destCol = parseInt(fromFile) - 1;
+                        const piece = board[destRow][destCol];
+                        
+                        if (piece === 'p' || piece === 'P') {
+                            // En passant target is the square between from and to
+                            const targetRank = (fromRank + toRank) / 2;
+                            const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+                            enPassantTarget = files[parseInt(fromFile) - 1] + targetRank;
+                        }
+                    }
+                }
+            }
+            
+            return { board: board, isWhiteSide: isWhiteSide, enPassantTarget: enPassantTarget };
         })();
         """
         return js

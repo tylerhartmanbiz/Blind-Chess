@@ -18,18 +18,21 @@ struct ChessMoveValidator {
         var canWhiteCastleQueenside: Bool
         var canBlackCastleKingside: Bool
         var canBlackCastleQueenside: Bool
+        var enPassantTarget: String? // e.g., "e3" if a pawn just moved from e2 to e4
         
         init(board: [[String]], isWhiteTurn: Bool, 
              canWhiteCastleKingside: Bool = true, 
              canWhiteCastleQueenside: Bool = true,
              canBlackCastleKingside: Bool = true,
-             canBlackCastleQueenside: Bool = true) {
+             canBlackCastleQueenside: Bool = true,
+             enPassantTarget: String? = nil) {
             self.board = board
             self.isWhiteTurn = isWhiteTurn
             self.canWhiteCastleKingside = canWhiteCastleKingside
             self.canWhiteCastleQueenside = canWhiteCastleQueenside
             self.canBlackCastleKingside = canBlackCastleKingside
             self.canBlackCastleQueenside = canBlackCastleQueenside
+            self.enPassantTarget = enPassantTarget
         }
         
         /// Get piece at position (row, col)
@@ -208,7 +211,22 @@ struct ChessMoveValidator {
             if isCapture {
                 return .valid
             }
-            // TODO: En passant would go here
+            
+            // Check for en passant
+            if let enPassantTarget = boardState.enPassantTarget {
+                // Convert target square (e.g., "e3") to row/col
+                let targetFile = Int(enPassantTarget.lowercased().unicodeScalars.first!.value) - 96 // a=1
+                let targetRank = Int(String(enPassantTarget.suffix(1)))!
+                let targetRow = 8 - targetRank
+                let targetCol = targetFile - 1
+                
+                // Check if this move is to the en passant target square
+                if toRow == targetRow && toCol == targetCol {
+                    print("  ✅ En passant capture detected")
+                    return .valid
+                }
+            }
+            
             return .invalid("Pawns can only move diagonally when capturing")
         }
         
@@ -540,6 +558,13 @@ extension ChessMoveValidator.BoardState {
             return nil
         }
         
+        // Get en passant target if available
+        let enPassantTarget = scriptResult["enPassantTarget"] as? String
+        
+        if let target = enPassantTarget {
+            print("  🎯 En passant target detected: \(target)")
+        }
+        
         // Detect castling rights based on piece positions
         // If king and rooks are in starting positions, assume castling is available
         let whiteKingOnE1 = boardArray[7][4] == "K"
@@ -561,7 +586,8 @@ extension ChessMoveValidator.BoardState {
             canWhiteCastleKingside: canWhiteCastleKingside,
             canWhiteCastleQueenside: canWhiteCastleQueenside,
             canBlackCastleKingside: canBlackCastleKingside,
-            canBlackCastleQueenside: canBlackCastleQueenside
+            canBlackCastleQueenside: canBlackCastleQueenside,
+            enPassantTarget: enPassantTarget
         )
     }
 }
