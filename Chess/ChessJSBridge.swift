@@ -348,7 +348,7 @@ struct ChessJSBridge {
     }
     
     /// Find a piece of the given type that can move to the target square
-    static func findPieceScript(pieceType: String?, targetSquare: String, isWhite: Bool) -> String {
+    static func findPieceScript(pieceType: String?, targetSquare: String, isWhite: Bool, enPassantTarget: String? = nil) -> String {
         let pieceChar: String
         if let type = pieceType?.lowercased() {
             switch type {
@@ -364,11 +364,22 @@ struct ChessJSBridge {
             pieceChar = ""
         }
         
+        let enPassantJS: String
+        if let target = enPassantTarget {
+            // Convert "e6" to file/rank numbers
+            let file = Int(target.lowercased().unicodeScalars.first!.value) - 96 // a=1
+            let rank = Int(String(target.suffix(1)))!
+            enPassantJS = "const enPassantFile = \(file); const enPassantRank = \(rank);"
+        } else {
+            enPassantJS = "const enPassantFile = null; const enPassantRank = null;"
+        }
+        
         let js = """
         (function() {
             const targetFile = Math.floor(\(targetSquare) / 10);
             const targetRank = \(targetSquare) % 10;
             const targetSquareStr = 'square-' + targetFile + targetRank;
+            \(enPassantJS)
             
             // Special handling for king (castling detection)
             if ("\(pieceChar.lowercased())" === "k") {
@@ -383,9 +394,6 @@ struct ChessJSBridge {
                 }
             }
             
-            // First, check if there's already a highlighted piece (user's turn indicator)
-            const highlightedSquares = document.querySelectorAll('.hint');
-            
             // Get all pieces of the specified type (or all pieces if no type specified)
             let pieces;
             if ("\(pieceChar)") {
@@ -395,8 +403,9 @@ struct ChessJSBridge {
             }
             
             // Try to find a piece that can reach the target square
-            // For pawns, prioritize same-file forward moves over diagonal captures
+            // For pawns, prioritize same-file forward moves, then en passant, then diagonal captures
             let bestMove = null;
+            let enPassantMove = null;
             
             for (let piece of pieces) {
                 const classes = piece.className.split(' ');
@@ -413,29 +422,69 @@ struct ChessJSBridge {
                     const fromFile = parseInt(fromSquare[0]);
                     const fromRank = parseInt(fromSquare[1]);
                     
-                    // For pawns, must be on the same file for forward moves
+                    const fileDiff = Math.abs(fromFile - targetFile);
+                    const rankDiff = Math.abs(fromRank - targetRank);
+                    const signedRankDiff = \(isWhite) ? (targetRank - fromRank) : (fromRank - targetRank);
+                    
+                    // Check if this piece can geometrically reach the target
+                    let canReach = false;
+                    
                     if ("\(pieceChar.lowercased())" === "p") {
-                        const fileDiff = Math.abs(fromFile - targetFile);
-                        const rankDiff = \(isWhite) ? (targetRank - fromRank) : (fromRank - targetRank);
+                        // Pawn logic
+                        // Check for en passant first (highest priority for diagonal moves to empty square)
+                        if (enPassantFile !== null && enPassantRank !== null && 
+                            targetFile === enPassantFile && targetRank === enPassantRank &&
+                            fileDiff === 1 && signedRankDiff === 1) {
+                            // This is an en passant capture!
+                            enPassantMove = fromSquare + targetFile + targetRank;
+                            continue; // Keep looking for other possibilities
+                        }
                         
                         // For forward moves (fileDiff === 0), pawn MUST be on same file
-                        if (fileDiff === 0 && fromFile === targetFile && (rankDiff === 1 || (rankDiff === 2 && (\(isWhite) ? fromRank === 2 : fromRank === 7)))) {
+                        if (fileDiff === 0 && fromFile === targetFile && (signedRankDiff === 1 || (signedRankDiff === 2 && (\(isWhite) ? fromRank === 2 : fromRank === 7)))) {
                             // Perfect match - forward move on same file, return immediately
                             return fromSquare + targetFile + targetRank;
-                        } else if (fileDiff === 1 && rankDiff === 1) {
-                            // Diagonal capture - save as backup but keep looking for same-file move
-                            if (!bestMove) {
+                        } else if (fileDiff === 1 && signedRankDiff === 1) {
+                            // Regular diagonal capture - save as backup
+                            if (!bestMove && !enPassantMove) {
                                 bestMove = fromSquare + targetFile + targetRank;
                             }
                         }
+                    } else if ("\(pieceChar.lowercased())" === "n") {
+                        // Knight moves in L-shape: 2+1 or 1+2
+                        canReach = (rankDiff === 2 && fileDiff === 1) || (rankDiff === 1 && fileDiff === 2);
+                    } else if ("\(pieceChar.lowercased())" === "b") {
+                        // Bishop moves diagonally
+                        canReach = rankDiff === fileDiff && rankDiff > 0;
+                    } else if ("\(pieceChar.lowercased())" === "r") {
+                        // Rook moves straight
+                        canReach = (fromFile === targetFile || fromRank === targetRank) && (fromFile !== targetFile || fromRank !== targetRank);
+                    } else if ("\(pieceChar.lowercased())" === "q") {
+                        // Queen moves like rook or bishop
+                        const isDiag = rankDiff === fileDiff && rankDiff > 0;
+                        const isStraight = (fromFile === targetFile || fromRank === targetRank) && (fromFile !== targetFile || fromRank !== targetRank);
+                        canReach = isDiag || isStraight;
+                    } else if ("\(pieceChar.lowercased())" === "k") {
+                        // King moves one square
+                        canReach = rankDiff <= 1 && fileDiff <= 1 && (rankDiff + fileDiff) > 0;
                     } else {
-                        // For other pieces, just return the first one we find
+                        // Unknown piece type - allow it
+                        canReach = true;
+                    }
+                    
+                    // If this non-pawn piece can reach the target, return it
+                    if (canReach && "\(pieceChar.lowercased())" !== "p") {
                         return fromSquare + targetFile + targetRank;
                     }
                 }
             }
             
-            // If we found a diagonal capture but no forward move, return it
+            // Return en passant move if found
+            if (enPassantMove) {
+                return enPassantMove;
+            }
+            
+            // Return regular diagonal capture if found
             if (bestMove) {
                 return bestMove;
             }

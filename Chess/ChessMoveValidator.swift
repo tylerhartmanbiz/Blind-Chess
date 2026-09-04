@@ -83,6 +83,38 @@ struct ChessMoveValidator {
             }
             return nil
         }
+        
+        /// Count pieces on the board for the current player
+        func countPieces() -> [String: Int] {
+            var counts: [String: Int] = [:]
+            
+            for row in 0..<8 {
+                for col in 0..<8 {
+                    if let piece = pieceAt(row: row, col: col), isWhitePiece(piece) == isWhiteTurn {
+                        let pieceType = piece.uppercased()
+                        counts[pieceType, default: 0] += 1
+                    }
+                }
+            }
+            
+            return counts
+        }
+        
+        /// Find all pieces of a type that belong to the current player
+        func findPieces(ofType pieceType: String) -> [(row: Int, col: Int)] {
+            var positions: [(row: Int, col: Int)] = []
+            let targetPiece = isWhiteTurn ? pieceType.uppercased() : pieceType.lowercased()
+            
+            for row in 0..<8 {
+                for col in 0..<8 {
+                    if board[row][col] == targetPiece {
+                        positions.append((row, col))
+                    }
+                }
+            }
+            
+            return positions
+        }
     }
     
     /// Validate if a move is legal
@@ -545,6 +577,119 @@ struct ChessMoveValidator {
             }
             return nil
         }
+    }
+    
+    // MARK: - Disambiguation Support
+    
+    /// Find all pieces that can legally move to a target square
+    /// - Parameters:
+    ///   - to: Target position as "xy" (e.g., "54" for e4)
+    ///   - pieceType: Optional piece type filter ("P", "N", "B", "R", "Q", "K")
+    ///   - boardState: Current board state
+    /// - Returns: Array of valid source positions that can move to the target
+    static func findValidMovesTo(to: String, pieceType: String?, boardState: BoardState) -> [(from: String, piece: String, fileChar: String, rank: String)] {
+        guard to.count == 2,
+              let toFile = Int(String(to.prefix(1))),
+              let toRank = Int(String(to.suffix(1))) else {
+            return []
+        }
+        
+        let toRow = 8 - toRank
+        let toCol = toFile - 1
+        
+        guard toRow >= 0 && toRow < 8 && toCol >= 0 && toCol < 8 else {
+            return []
+        }
+        
+        var validMoves: [(from: String, piece: String, fileChar: String, rank: String)] = []
+        
+        // If piece type is specified, only check those pieces
+        let piecesToCheck: [String]
+        if let type = pieceType {
+            piecesToCheck = [pieceLetter(for: type)]
+        } else {
+            piecesToCheck = ["P", "N", "B", "R", "Q", "K"]
+        }
+        
+        for pieceChar in piecesToCheck {
+            let positions = boardState.findPieces(ofType: pieceChar)
+            
+            for pos in positions {
+                let fromFile = pos.col + 1
+                let fromRank = 8 - pos.row
+                let fromSquare = "\(fromFile)\(fromRank)"
+                
+                // Validate this move
+                let validation = validateMove(from: fromSquare, to: to, boardState: boardState)
+                
+                if validation.isValid {
+                    let pieceName = pieceTypeName(pieceChar)
+                    let files = ["a", "b", "c", "d", "e", "f", "g", "h"]
+                    let fileCharacter = files[fromFile - 1]
+                    validMoves.append((from: fromSquare, piece: pieceName, fileChar: fileCharacter, rank: "\(fromRank)"))
+                }
+            }
+        }
+        
+        return validMoves
+    }
+    
+    /// Analyze if multiple pieces can reach the target and determine disambiguation needed
+    static func analyzeAmbiguity(validMoves: [(from: String, piece: String, fileChar: String, rank: String)]) -> DisambiguationType {
+        guard validMoves.count > 1 else { return .none }
+        
+        // Extract files and ranks
+        let files = validMoves.map { $0.fileChar }
+        let ranks = validMoves.map { $0.rank }
+        
+        let uniqueFiles = Set(files)
+        let uniqueRanks = Set(ranks)
+        
+        // If all pieces are on different files, ask for file
+        if uniqueFiles.count == validMoves.count {
+            return .needFile
+        }
+        
+        // If all pieces are on different ranks, ask for rank
+        if uniqueRanks.count == validMoves.count {
+            return .needRank
+        }
+        
+        // Mixed situation - need both file and rank (or exact square)
+        return .needBoth
+    }
+    
+    /// Convert piece character to human-readable name
+    private static func pieceTypeName(_ char: String) -> String {
+        switch char.uppercased() {
+        case "P": return "Pawn"
+        case "N": return "Knight"
+        case "B": return "Bishop"
+        case "R": return "Rook"
+        case "Q": return "Queen"
+        case "K": return "King"
+        default: return "Piece"
+        }
+    }
+
+    /// Convert a piece name ("Pawn", "pawn") or letter code ("P", "p") to its single-letter code
+    private static func pieceLetter(for name: String) -> String {
+        switch name.uppercased() {
+        case "PAWN", "P": return "P"
+        case "KNIGHT", "N": return "N"
+        case "BISHOP", "B": return "B"
+        case "ROOK", "R": return "R"
+        case "QUEEN", "Q": return "Q"
+        case "KING", "K": return "K"
+        default: return name.uppercased()
+        }
+    }
+    
+    enum DisambiguationType {
+        case none
+        case needFile
+        case needRank
+        case needBoth
     }
 }
 

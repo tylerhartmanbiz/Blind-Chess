@@ -201,12 +201,30 @@ struct ChessMoveParser {
 
 struct ParsedMove {
     let piece: String?  // "Pawn", "Rook", "Knight", "Bishop", "Queen", "King" (or nil)
-    let file: String    // "a" through "h"
-    let rank: String    // "1" through "8"
+    let file: String    // "a" through "h" (destination)
+    let rank: String    // "1" through "8" (destination)
+    let fromFile: String?  // Optional: disambiguating source file
+    let fromRank: String?  // Optional: disambiguating source rank
+    
+    init(piece: String?, file: String, rank: String, fromFile: String? = nil, fromRank: String? = nil) {
+        self.piece = piece
+        self.file = file
+        self.rank = rank
+        self.fromFile = fromFile
+        self.fromRank = fromRank
+    }
     
     var description: String {
         let pieceName = piece ?? "Piece"
-        return "\(pieceName) → \(file.uppercased())\(rank)"
+        var desc = "\(pieceName)"
+        if let ff = fromFile {
+            desc += " from \(ff.uppercased())"
+        }
+        if let fr = fromRank {
+            desc += " from rank \(fr)"
+        }
+        desc += " → \(file.uppercased())\(rank)"
+        return desc
     }
     
     /// Chess.com coordinate format (e.g., "e4" -> "54")
