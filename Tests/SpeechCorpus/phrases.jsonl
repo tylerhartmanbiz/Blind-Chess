@@ -1,0 +1,124 @@
+{"phrase_id": "pawn_e4", "text": "e4", "expected_text": "e4", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "e4", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_d4", "text": "d4", "expected_text": "d4", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "d4", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_c4", "text": "c4", "expected_text": "c4", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "c4", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_f4", "text": "f4", "expected_text": "f4", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "f4", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_e5", "text": "e5", "expected_text": "e5", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "e5", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_d5", "text": "d5", "expected_text": "d5", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "d5", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_c5", "text": "c5", "expected_text": "c5", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "c5", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_g6", "text": "g6", "expected_text": "g6", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "g6", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_b6", "text": "b6", "expected_text": "b6", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "b6", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_a6", "text": "a6", "expected_text": "a6", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "a6", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_h6", "text": "h6", "expected_text": "h6", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "h6", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "pawn_f5", "text": "f5", "expected_text": "f5", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "f5", "capture": false, "promo": null}, "tags": ["pawn", "square"]}
+{"phrase_id": "sq_h8", "text": "h8", "expected_text": "h8", "semantics": {"kind": "square", "square": "h8"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_a8", "text": "a8", "expected_text": "a8", "semantics": {"kind": "square", "square": "a8"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_b3", "text": "b3", "expected_text": "b3", "semantics": {"kind": "square", "square": "b3"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_c3", "text": "c3", "expected_text": "c3", "semantics": {"kind": "square", "square": "c3"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_d3", "text": "d3", "expected_text": "d3", "semantics": {"kind": "square", "square": "d3"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_e3", "text": "e3", "expected_text": "e3", "semantics": {"kind": "square", "square": "e3"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_g3", "text": "g3", "expected_text": "g3", "semantics": {"kind": "square", "square": "g3"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_b8", "text": "b8", "expected_text": "b8", "semantics": {"kind": "square", "square": "b8"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_e8", "text": "e8", "expected_text": "e8", "semantics": {"kind": "square", "square": "e8"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_d8", "text": "d8", "expected_text": "d8", "semantics": {"kind": "square", "square": "d8"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_a1", "text": "a1", "expected_text": "a1", "semantics": {"kind": "square", "square": "a1"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_h1", "text": "h1", "expected_text": "h1", "semantics": {"kind": "square", "square": "h1"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_g2", "text": "g2", "expected_text": "g2", "semantics": {"kind": "square", "square": "g2"}, "tags": ["square", "confusable"]}
+{"phrase_id": "sq_b2", "text": "b2", "expected_text": "b2", "semantics": {"kind": "square", "square": "b2"}, "tags": ["square", "confusable"]}
+{"phrase_id": "knight_to_f3", "text": "knight to f3", "expected_text": "knight to f3", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "f3", "capture": false, "promo": null}, "tags": ["piece", "knight", "to"]}
+{"phrase_id": "knight_x_c3", "text": "knight c3", "expected_text": "knight c3", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "c3", "capture": false, "promo": null}, "tags": ["piece", "knight", "noprep"]}
+{"phrase_id": "knight_to_f6", "text": "knight to f6", "expected_text": "knight to f6", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "f6", "capture": false, "promo": null}, "tags": ["piece", "knight", "to"]}
+{"phrase_id": "knight_x_c6", "text": "knight c6", "expected_text": "knight c6", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "c6", "capture": false, "promo": null}, "tags": ["piece", "knight", "noprep"]}
+{"phrase_id": "knight_to_e2", "text": "knight to e2", "expected_text": "knight to e2", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "e2", "capture": false, "promo": null}, "tags": ["piece", "knight", "to"]}
+{"phrase_id": "knight_to_d7", "text": "knight to d7", "expected_text": "knight to d7", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "d7", "capture": false, "promo": null}, "tags": ["piece", "knight", "to"]}
+{"phrase_id": "knight_x_g5", "text": "knight g5", "expected_text": "knight g5", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "g5", "capture": false, "promo": null}, "tags": ["piece", "knight", "noprep"]}
+{"phrase_id": "knight_to_h4", "text": "knight to h4", "expected_text": "knight to h4", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "h4", "capture": false, "promo": null}, "tags": ["piece", "knight", "to"]}
+{"phrase_id": "bishop_to_c4", "text": "bishop to c4", "expected_text": "bishop to c4", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "c4", "capture": false, "promo": null}, "tags": ["piece", "bishop", "to"]}
+{"phrase_id": "bishop_x_b5", "text": "bishop b5", "expected_text": "bishop b5", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "b5", "capture": false, "promo": null}, "tags": ["piece", "bishop", "noprep"]}
+{"phrase_id": "bishop_to_g7", "text": "bishop to g7", "expected_text": "bishop to g7", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "g7", "capture": false, "promo": null}, "tags": ["piece", "bishop", "to"]}
+{"phrase_id": "bishop_to_e7", "text": "bishop to e7", "expected_text": "bishop to e7", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "e7", "capture": false, "promo": null}, "tags": ["piece", "bishop", "to"]}
+{"phrase_id": "bishop_to_a3", "text": "bishop to a3", "expected_text": "bishop to a3", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "a3", "capture": false, "promo": null}, "tags": ["piece", "bishop", "to"]}
+{"phrase_id": "bishop_x_h3", "text": "bishop h3", "expected_text": "bishop h3", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "h3", "capture": false, "promo": null}, "tags": ["piece", "bishop", "noprep"]}
+{"phrase_id": "bishop_to_f1", "text": "bishop to f1", "expected_text": "bishop to f1", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "f1", "capture": false, "promo": null}, "tags": ["piece", "bishop", "to"]}
+{"phrase_id": "rook_to_e1", "text": "rook to e1", "expected_text": "rook to e1", "semantics": {"kind": "move", "piece": "R", "from": null, "to": "e1", "capture": false, "promo": null}, "tags": ["piece", "rook", "to"]}
+{"phrase_id": "rook_x_d1", "text": "rook d1", "expected_text": "rook d1", "semantics": {"kind": "move", "piece": "R", "from": null, "to": "d1", "capture": false, "promo": null}, "tags": ["piece", "rook", "noprep"]}
+{"phrase_id": "rook_to_c8", "text": "rook to c8", "expected_text": "rook to c8", "semantics": {"kind": "move", "piece": "R", "from": null, "to": "c8", "capture": false, "promo": null}, "tags": ["piece", "rook", "to"]}
+{"phrase_id": "rook_to_f8", "text": "rook to f8", "expected_text": "rook to f8", "semantics": {"kind": "move", "piece": "R", "from": null, "to": "f8", "capture": false, "promo": null}, "tags": ["piece", "rook", "to"]}
+{"phrase_id": "rook_to_a7", "text": "rook to a7", "expected_text": "rook to a7", "semantics": {"kind": "move", "piece": "R", "from": null, "to": "a7", "capture": false, "promo": null}, "tags": ["piece", "rook", "to"]}
+{"phrase_id": "rook_x_h7", "text": "rook h7", "expected_text": "rook h7", "semantics": {"kind": "move", "piece": "R", "from": null, "to": "h7", "capture": false, "promo": null}, "tags": ["piece", "rook", "noprep"]}
+{"phrase_id": "rook_to_a2", "text": "rook to a2", "expected_text": "rook to a2", "semantics": {"kind": "move", "piece": "R", "from": null, "to": "a2", "capture": false, "promo": null}, "tags": ["piece", "rook", "to"]}
+{"phrase_id": "queen_to_h5", "text": "queen to h5", "expected_text": "queen to h5", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "h5", "capture": false, "promo": null}, "tags": ["piece", "queen", "to"]}
+{"phrase_id": "queen_x_d2", "text": "queen d2", "expected_text": "queen d2", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "d2", "capture": false, "promo": null}, "tags": ["piece", "queen", "noprep"]}
+{"phrase_id": "queen_to_a4", "text": "queen to a4", "expected_text": "queen to a4", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "a4", "capture": false, "promo": null}, "tags": ["piece", "queen", "to"]}
+{"phrase_id": "queen_to_b7", "text": "queen to b7", "expected_text": "queen to b7", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "b7", "capture": false, "promo": null}, "tags": ["piece", "queen", "to"]}
+{"phrase_id": "queen_to_g4", "text": "queen to g4", "expected_text": "queen to g4", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "g4", "capture": false, "promo": null}, "tags": ["piece", "queen", "to"]}
+{"phrase_id": "queen_x_e6", "text": "queen e6", "expected_text": "queen e6", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "e6", "capture": false, "promo": null}, "tags": ["piece", "queen", "noprep"]}
+{"phrase_id": "queen_to_c7", "text": "queen to c7", "expected_text": "queen to c7", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "c7", "capture": false, "promo": null}, "tags": ["piece", "queen", "to"]}
+{"phrase_id": "king_to_g8", "text": "king to g8", "expected_text": "king to g8", "semantics": {"kind": "move", "piece": "K", "from": null, "to": "g8", "capture": false, "promo": null}, "tags": ["piece", "king", "to"]}
+{"phrase_id": "king_x_f2", "text": "king f2", "expected_text": "king f2", "semantics": {"kind": "move", "piece": "K", "from": null, "to": "f2", "capture": false, "promo": null}, "tags": ["piece", "king", "noprep"]}
+{"phrase_id": "king_to_h2", "text": "king to h2", "expected_text": "king to h2", "semantics": {"kind": "move", "piece": "K", "from": null, "to": "h2", "capture": false, "promo": null}, "tags": ["piece", "king", "to"]}
+{"phrase_id": "king_to_e7", "text": "king to e7", "expected_text": "king to e7", "semantics": {"kind": "move", "piece": "K", "from": null, "to": "e7", "capture": false, "promo": null}, "tags": ["piece", "king", "to"]}
+{"phrase_id": "king_to_c1", "text": "king to c1", "expected_text": "king to c1", "semantics": {"kind": "move", "piece": "K", "from": null, "to": "c1", "capture": false, "promo": null}, "tags": ["piece", "king", "to"]}
+{"phrase_id": "pawn_to_a5", "text": "pawn to a5", "expected_text": "pawn to a5", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "a5", "capture": false, "promo": null}, "tags": ["piece", "pawn", "to"]}
+{"phrase_id": "pawn_to_h5", "text": "pawn to h5", "expected_text": "pawn to h5", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "h5", "capture": false, "promo": null}, "tags": ["piece", "pawn", "to"]}
+{"phrase_id": "pawn_to_f7", "text": "pawn to f7", "expected_text": "pawn to f7", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "f7", "capture": false, "promo": null}, "tags": ["piece", "pawn", "to"]}
+{"phrase_id": "pawn_to_c2", "text": "pawn to c2", "expected_text": "pawn to c2", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "c2", "capture": false, "promo": null}, "tags": ["piece", "pawn", "to"]}
+{"phrase_id": "cap_knight_takes_e5", "text": "knight takes e5", "expected_text": "knight takes e5", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "e5", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_bishop_takes_f7", "text": "bishop takes f7", "expected_text": "bishop takes f7", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "f7", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_queen_takes_d8", "text": "queen takes d8", "expected_text": "queen takes d8", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "d8", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_rook_takes_a8", "text": "rook takes a8", "expected_text": "rook takes a8", "semantics": {"kind": "move", "piece": "R", "from": null, "to": "a8", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_king_takes_g1", "text": "king takes g1", "expected_text": "king takes g1", "semantics": {"kind": "move", "piece": "K", "from": null, "to": "g1", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_e_takes_d5", "text": "e takes d5", "expected_text": "e takes d5", "semantics": {"kind": "move", "piece": "P", "from": "e", "to": "d5", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_pawn_takes_b4", "text": "pawn takes b4", "expected_text": "pawn takes b4", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "b4", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_bishop_captures_h6", "text": "bishop captures h6", "expected_text": "bishop captures h6", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "h6", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_g_takes_h3", "text": "g takes h3", "expected_text": "g takes h3", "semantics": {"kind": "move", "piece": "P", "from": "g", "to": "h3", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "cap_c_takes_d6", "text": "c takes d6", "expected_text": "c takes d6", "semantics": {"kind": "move", "piece": "P", "from": "c", "to": "d6", "capture": true, "promo": null}, "tags": ["capture"]}
+{"phrase_id": "castle_castle_kingside", "text": "castle kingside", "expected_text": "castle kingside", "semantics": {"kind": "castle", "side": "K"}, "tags": ["castle"]}
+{"phrase_id": "castle_castle_queenside", "text": "castle queenside", "expected_text": "castle queenside", "semantics": {"kind": "castle", "side": "Q"}, "tags": ["castle"]}
+{"phrase_id": "castle_castles", "text": "castles", "expected_text": "castles", "semantics": {"kind": "castle", "side": "K"}, "tags": ["castle"]}
+{"phrase_id": "castle_short_castle", "text": "short castle", "expected_text": "short castle", "semantics": {"kind": "castle", "side": "K"}, "tags": ["castle"]}
+{"phrase_id": "castle_long_castle", "text": "long castle", "expected_text": "long castle", "semantics": {"kind": "castle", "side": "Q"}, "tags": ["castle"]}
+{"phrase_id": "castle_castle_short", "text": "castle short", "expected_text": "castle short", "semantics": {"kind": "castle", "side": "K"}, "tags": ["castle"]}
+{"phrase_id": "castle_castle_long", "text": "castle long", "expected_text": "castle long", "semantics": {"kind": "castle", "side": "Q"}, "tags": ["castle"]}
+{"phrase_id": "promo_e8_queen", "text": "e8 queen", "expected_text": "e8 queen", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "e8", "capture": false, "promo": "Q"}, "tags": ["promotion"]}
+{"phrase_id": "promo_pawn_to_a8_promote_to_queen", "text": "pawn to a8 promote to queen", "expected_text": "pawn to a8 promote to queen", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "a8", "capture": false, "promo": "Q"}, "tags": ["promotion"]}
+{"phrase_id": "promo_b1_knight", "text": "b1 knight", "expected_text": "b1 knight", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "b1", "capture": false, "promo": "N"}, "tags": ["promotion"]}
+{"phrase_id": "promo_h8_promote_to_rook", "text": "h8 promote to rook", "expected_text": "h8 promote to rook", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "h8", "capture": false, "promo": "R"}, "tags": ["promotion"]}
+{"phrase_id": "promo_g1_equals_queen", "text": "g1 equals queen", "expected_text": "g1 equals queen", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "g1", "capture": false, "promo": "Q"}, "tags": ["promotion"]}
+{"phrase_id": "promo_d_takes_c8_queen", "text": "d takes c8 queen", "expected_text": "d takes c8 queen", "semantics": {"kind": "move", "piece": "P", "from": "d", "to": "c8", "capture": true, "promo": "Q"}, "tags": ["promotion"]}
+{"phrase_id": "dis_knight_b_d2", "text": "knight b d2", "expected_text": "knight b d2", "semantics": {"kind": "move", "piece": "N", "from": "b", "to": "d2", "capture": false, "promo": null}, "tags": ["disambiguation"]}
+{"phrase_id": "dis_knight_from_b1_to_d2", "text": "knight from b1 to d2", "expected_text": "knight from b1 to d2", "semantics": {"kind": "move", "piece": "N", "from": "b1", "to": "d2", "capture": false, "promo": null}, "tags": ["disambiguation"]}
+{"phrase_id": "dis_rook_a_d1", "text": "rook a d1", "expected_text": "rook a d1", "semantics": {"kind": "move", "piece": "R", "from": "a", "to": "d1", "capture": false, "promo": null}, "tags": ["disambiguation"]}
+{"phrase_id": "dis_rook_f1_to_e1", "text": "rook f1 to e1", "expected_text": "rook f1 to e1", "semantics": {"kind": "move", "piece": "R", "from": "f1", "to": "e1", "capture": false, "promo": null}, "tags": ["disambiguation"]}
+{"phrase_id": "dis_knight_g_to_e4", "text": "knight g to e4", "expected_text": "knight g to e4", "semantics": {"kind": "move", "piece": "N", "from": "g", "to": "e4", "capture": false, "promo": null}, "tags": ["disambiguation"]}
+{"phrase_id": "answer_b1", "text": "the one on b1", "expected_text": "the one on b1", "semantics": {"kind": "answer", "square": "b1"}, "tags": ["answer"]}
+{"phrase_id": "answer_f3", "text": "the one on f3", "expected_text": "the one on f3", "semantics": {"kind": "answer", "square": "f3"}, "tags": ["answer"]}
+{"phrase_id": "answer_h8", "text": "the one on h8", "expected_text": "the one on h8", "semantics": {"kind": "answer", "square": "h8"}, "tags": ["answer"]}
+{"phrase_id": "answer_a8", "text": "the one on a8", "expected_text": "the one on a8", "semantics": {"kind": "answer", "square": "a8"}, "tags": ["answer"]}
+{"phrase_id": "answer_d3", "text": "the one on d3", "expected_text": "the one on d3", "semantics": {"kind": "answer", "square": "d3"}, "tags": ["answer"]}
+{"phrase_id": "answer_g1", "text": "the one on g1", "expected_text": "the one on g1", "semantics": {"kind": "answer", "square": "g1"}, "tags": ["answer"]}
+{"phrase_id": "cmd_new_game", "text": "new game", "expected_text": "new game", "semantics": {"kind": "command", "command": "new_game"}, "tags": ["command"]}
+{"phrase_id": "cmd_resign", "text": "resign", "expected_text": "resign", "semantics": {"kind": "command", "command": "resign"}, "tags": ["command"]}
+{"phrase_id": "cmd_repeat", "text": "repeat", "expected_text": "repeat", "semantics": {"kind": "command", "command": "repeat"}, "tags": ["command"]}
+{"phrase_id": "cmd_undo", "text": "undo", "expected_text": "undo", "semantics": {"kind": "command", "command": "undo"}, "tags": ["command"]}
+{"phrase_id": "cmd_undo_2", "text": "take back", "expected_text": "take back", "semantics": {"kind": "command", "command": "undo"}, "tags": ["command"]}
+{"phrase_id": "cmd_read_board", "text": "read the board", "expected_text": "read the board", "semantics": {"kind": "command", "command": "read_board"}, "tags": ["command"]}
+{"phrase_id": "cmd_last_move", "text": "what was the last move", "expected_text": "what was the last move", "semantics": {"kind": "command", "command": "last_move"}, "tags": ["command"]}
+{"phrase_id": "cmd_draw", "text": "offer a draw", "expected_text": "offer a draw", "semantics": {"kind": "command", "command": "draw"}, "tags": ["command"]}
+{"phrase_id": "cmd_yes", "text": "yes", "expected_text": "yes", "semantics": {"kind": "command", "command": "yes"}, "tags": ["command"]}
+{"phrase_id": "cmd_no", "text": "no", "expected_text": "no", "semantics": {"kind": "command", "command": "no"}, "tags": ["command"]}
+{"phrase_id": "cmd_cancel", "text": "cancel", "expected_text": "cancel", "semantics": {"kind": "command", "command": "cancel"}, "tags": ["command"]}
+{"phrase_id": "where_Q", "text": "where is my queen", "expected_text": "where is my queen", "semantics": {"kind": "query", "command": "where", "piece": "Q"}, "tags": ["command", "query"]}
+{"phrase_id": "where_K", "text": "where is my king", "expected_text": "where is my king", "semantics": {"kind": "query", "command": "where", "piece": "K"}, "tags": ["command", "query"]}
+{"phrase_id": "where_N", "text": "where are my knights", "expected_text": "where are my knights", "semantics": {"kind": "query", "command": "where", "piece": "N"}, "tags": ["command", "query"]}
+{"phrase_id": "where_R", "text": "where are my rooks", "expected_text": "where are my rooks", "semantics": {"kind": "query", "command": "where", "piece": "R"}, "tags": ["command", "query"]}
+{"phrase_id": "hes_knight_to_f3", "text": "um, knight to... f3", "expected_text": "knight to f3", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "f3", "capture": false, "promo": null}, "tags": ["hesitation"]}
+{"phrase_id": "hes_bishop_to_c4", "text": "uh, bishop to c4", "expected_text": "bishop to c4", "semantics": {"kind": "move", "piece": "B", "from": null, "to": "c4", "capture": false, "promo": null}, "tags": ["hesitation"]}
+{"phrase_id": "hes_queen_takes_h7", "text": "hmm, let me see, queen takes h7", "expected_text": "queen takes h7", "semantics": {"kind": "move", "piece": "Q", "from": null, "to": "h7", "capture": true, "promo": null}, "tags": ["hesitation"]}
+{"phrase_id": "hes_e4", "text": "okay, e4", "expected_text": "e4", "semantics": {"kind": "move", "piece": "P", "from": null, "to": "e4", "capture": false, "promo": null}, "tags": ["hesitation"]}
+{"phrase_id": "hes_knight_to_g3", "text": "knight, uh, to g3", "expected_text": "knight to g3", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "g3", "capture": false, "promo": null}, "tags": ["hesitation"]}
+{"phrase_id": "nato_h8", "text": "hotel eight", "expected_text": "hotel eight", "semantics": {"kind": "square", "square": "h8"}, "tags": ["nato"]}
+{"phrase_id": "nato_a8", "text": "alpha eight", "expected_text": "alpha eight", "semantics": {"kind": "square", "square": "a8"}, "tags": ["nato"]}
+{"phrase_id": "nato_b3", "text": "bravo three", "expected_text": "bravo three", "semantics": {"kind": "square", "square": "b3"}, "tags": ["nato"]}
+{"phrase_id": "nato_d3", "text": "delta three", "expected_text": "delta three", "semantics": {"kind": "square", "square": "d3"}, "tags": ["nato"]}
+{"phrase_id": "nato_f3_n", "text": "knight to foxtrot three", "expected_text": "knight to foxtrot three", "semantics": {"kind": "move", "piece": "N", "from": null, "to": "f3", "capture": false, "promo": null}, "tags": ["nato"]}
+{"phrase_id": "nato_e4", "text": "echo four", "expected_text": "echo four", "semantics": {"kind": "square", "square": "e4"}, "tags": ["nato"]}

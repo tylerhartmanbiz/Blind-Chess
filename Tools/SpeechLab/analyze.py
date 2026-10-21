@@ -236,23 +236,27 @@ def main():
         summary["top_phrase_confusions"][cfg] = [[f"{a_} -> {b_}", n] for (a_, b_), n in c.most_common(40)]
     if a.summary:
         json.dump(summary, open(a.summary, "w"), indent=1)
-    if a.corpus:
+    if a.corpus:  # one line per clip, results keyed by config (semantics live in phrases.jsonl)
+        clips = {}
+        for r in rows:
+            c = clips.setdefault(r["clip_id"], {"clip": r["clip_id"], "phrase_id": r["phrase_id"],
+                                                "expected_text": phrases[r["phrase_id"]]["expected_text"],
+                                                "speaker_source": r.get("speaker_source"), "speaker": r.get("speaker"),
+                                                "env": r.get("env"), "results": {}})
+            if r["config"] == "st":  # never ran on the runner (SpeechTranscriber unavailable)
+                continue
+            if "error" in r:
+                x = {"error": r["error"][:60]}
+            else:
+                x = {"best": r.get("best", "")}
+                nb = [t for t in (r.get("nbest") or []) if t != x["best"]]
+                if nb:
+                    x["nbest_alt"] = nb[:4]
+                x["ms"] = r.get("latency_ms")
+            c["results"][r["config"]] = x
         with open(a.corpus, "w") as out:
-            for r in rows:
-                p = phrases[r["phrase_id"]]
-                o = {"clip": r["clip_id"], "phrase_id": r["phrase_id"], "expected_text": p["expected_text"],
-                     "speaker_source": r.get("speaker_source"), "speaker": r.get("speaker"), "env": r.get("env"),
-                     "config": r["config"]}
-                if "error" in r:
-                    o["error"] = r["error"]
-                else:
-                    o["best"] = r.get("best", "")
-                    nb = [x for x in (r.get("nbest") or []) if x != o["best"]]
-                    if nb:
-                        o["nbest_alt"] = nb[:4]
-                    o["ms"] = r.get("latency_ms")
-                    o["sem_ok"] = r["_m"][1]
-                out.write(json.dumps(o, ensure_ascii=False, separators=(",", ":")) + "\n")
+            for c in clips.values():
+                out.write(json.dumps(c, ensure_ascii=False, separators=(",", ":")) + "\n")
     # console table
     for kind in ("config", "config×cleanliness"):
         print(f"\n== {kind}")
