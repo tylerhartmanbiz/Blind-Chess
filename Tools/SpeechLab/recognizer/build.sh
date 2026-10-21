@@ -1,26 +1,34 @@
 #!/bin/bash
-# Builds the recognizer CLI (with embedded Info.plist) and a SpeechLab.app wrapper.
-# Tries the full feature set first, then falls back to stubs for code that does not compile on this SDK.
+# Builds the recognizer CLI (Info.plist embedded so TCC accepts it) and a SpeechLab.app wrapper.
+# usage: build.sh OUTDIR [macos|iossim]
+# Optional feature files that fail to type-check on this SDK are replaced by their *Stub.swift.
 set -u
 cd "$(dirname "$0")"
-OUT=${1:-build}
+OUT=${1:-build}; PLATFORM=${2:-macos}
 mkdir -p "$OUT"
-FLAGS=(-O -parse-as-library -swift-version 5 -framework Speech -framework AVFoundation
-       -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist)
-built=""
-for combo in "LM.swift Analyzer.swift" "LMStub.swift Analyzer.swift" "LM.swift AnalyzerStub.swift" "LMStub.swift AnalyzerStub.swift"; do
-  echo "== trying: main.swift $combo"
-  if xcrun swiftc "${FLAGS[@]}" main.swift $combo -o "$OUT/speechlab" 2> "$OUT/build-errors.txt"; then
-    built="$combo"; break
+if [ "$PLATFORM" = iossim ]; then
+  SDKARGS=(-sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" -target arm64-apple-ios26.0-simulator)
+else
+  SDKARGS=()
+fi
+FLAGS=(-O -parse-as-library -swift-version 5 "${SDKARGS[@]}" -framework Speech -framework AVFoundation)
+OPT=(LM Analyzer Reserve)
+stubs() { for o in "${OPT[@]}"; do echo "${o}Stub.swift"; done; }
+FILES=(main.swift)
+for o in "${OPT[@]}"; do
+  others=$(for x in "${OPT[@]}"; do [ "$x" != "$o" ] && echo "${x}Stub.swift"; done)
+  if xcrun swiftc -typecheck "${FLAGS[@]}" main.swift "$o.swift" $others 2> "$OUT/typecheck-$o.txt"; then
+    FILES+=("$o.swift"); echo "feature $o: OK"
+  else
+    FILES+=("${o}Stub.swift"); echo "feature $o: STUBBED"; head -30 "$OUT/typecheck-$o.txt"
   fi
-  head -60 "$OUT/build-errors.txt"
 done
-[ -n "$built" ] || { echo "BUILD FAILED"; exit 1; }
-echo "BUILT_WITH: $built" | tee "$OUT/built-with.txt"
-APP="$OUT/SpeechLab.app"
-rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS"
-cp Info.plist "$APP/Contents/Info.plist"
-cp "$OUT/speechlab" "$APP/Contents/MacOS/speechlab"
+xcrun swiftc "${FLAGS[@]}" "${FILES[@]}" -o "$OUT/speechlab" \
+  -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist || { echo "BUILD FAILED"; exit 1; }
+echo "BUILT_WITH: ${FILES[*]}" | tee "$OUT/built-with.txt"
 codesign --force -s - --identifier com.blindchess.speechlab "$OUT/speechlab"
-codesign --force -s - "$APP"
-codesign -dv "$APP" 2>&1 | head -5
+if [ "$PLATFORM" = macos ]; then
+  APP="$OUT/SpeechLab.app"; rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS"
+  cp Info.plist "$APP/Contents/Info.plist"; cp "$OUT/speechlab" "$APP/Contents/MacOS/speechlab"
+  codesign --force -s - "$APP"
+fi

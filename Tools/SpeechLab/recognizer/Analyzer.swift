@@ -5,7 +5,7 @@ import Speech
 
 nonisolated(unsafe) var analyzerAssetsReady: [String: String] = [:]
 
-@available(macOS 26, *)
+@available(macOS 26, iOS 26, *)
 func ensureAssets(_ key: String, _ modules: [any SpeechModule]) async -> String {
     if let s = analyzerAssetsReady[key] { return s }
     var status = "ok"
@@ -20,18 +20,19 @@ func ensureAssets(_ key: String, _ modules: [any SpeechModule]) async -> String 
     return status
 }
 
-@available(macOS 26, *)
+@available(macOS 26, iOS 26, *)
 func makeContext(_ ctx: [String]) -> AnalysisContext {
     let c = AnalysisContext()
     c.contextualStrings[AnalysisContext.ContextualStringsTag.general] = ctx
     return c
 }
 
-@available(macOS 26, *)
+@available(macOS 26, iOS 26, *)
 func runST(url: URL, ctx: [String]?) async throws -> [String: Any] {
     let start = Date()
     let t = SpeechTranscriber(locale: Locale(identifier: "en-US"), transcriptionOptions: [],
                               reportingOptions: [.alternativeTranscriptions], attributeOptions: [])
+    if analyzerAssetsReady["st"] == nil { err("st reserve: \(await reserveLocaleHook())") }
     _ = await ensureAssets("st", [t])
     let analyzer = SpeechAnalyzer(modules: [t])
     if let ctx { try await analyzer.setContext(makeContext(ctx)) }
@@ -51,7 +52,7 @@ func runST(url: URL, ctx: [String]?) async throws -> [String: Any] {
     return pack(try await collector.value, start)
 }
 
-@available(macOS 26, *)
+@available(macOS 26, iOS 26, *)
 func runDict(url: URL, ctx: [String]?) async throws -> [String: Any] {
     let start = Date()
     let t = DictationTranscriber(locale: Locale(identifier: "en-US"), contentHints: [.shortForm], transcriptionOptions: [],
@@ -97,7 +98,7 @@ func pack(_ parts: [[String]], _ start: Date) -> [String: Any] {
 }
 
 func analyzerRecognize(kind: String, url: URL, ctx: [String]) async -> [String: Any] {
-    guard #available(macOS 26, *) else { return ["error": "needs macOS 26"] }
+    guard #available(macOS 26, iOS 26, *) else { return ["error": "needs macOS 26"] }
     do {
         switch kind {
         case "st": return try await runST(url: url, ctx: nil)
@@ -112,7 +113,7 @@ func analyzerRecognize(kind: String, url: URL, ctx: [String]) async -> [String: 
 }
 
 func analyzerProbe() async {
-    guard #available(macOS 26, *) else { print("analyzer: macOS < 26"); return }
+    guard #available(macOS 26, iOS 26, *) else { print("analyzer: macOS < 26"); return }
     print("SpeechTranscriber.isAvailable=\(SpeechTranscriber.isAvailable)")
     let sup = await SpeechTranscriber.supportedLocales.map { $0.identifier }.filter { $0.hasPrefix("en") }
     let inst = await SpeechTranscriber.installedLocales.map { $0.identifier }

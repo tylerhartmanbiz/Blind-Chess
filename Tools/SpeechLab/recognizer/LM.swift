@@ -35,7 +35,7 @@ func chessTrainingPhrases() -> [(String, Int)] {
     return out
 }
 
-@available(macOS 14, *)
+@available(macOS 14, iOS 17, *)
 func buildLanguageModelImpl() async throws -> AnyObject {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("speechlab-lm-\(getpid())")
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -53,12 +53,12 @@ func buildLanguageModelImpl() async throws -> AnyObject {
 }
 
 func buildLanguageModel() async throws -> AnyObject {
-    if #available(macOS 14, *) { return try await buildLanguageModelImpl() }
+    if #available(macOS 14, iOS 17, *) { return try await buildLanguageModelImpl() }
     throw NSError(domain: "speechlab", code: 1, userInfo: [NSLocalizedDescriptionKey: "needs macOS 14"])
 }
 
 func applyLM(_ lm: AnyObject, to req: SFSpeechRecognitionRequest) {
-    if #available(macOS 14, *), let cfg = lm as? SFSpeechLanguageModel.Configuration {
+    if #available(macOS 14, iOS 17, *), let cfg = lm as? SFSpeechLanguageModel.Configuration {
         req.customizedLanguageModel = cfg
     }
 }
