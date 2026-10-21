@@ -106,8 +106,8 @@ async function ensureGame(color, label) {
 
 async function playGame({ label, color, maxPlies = 140, extras = {}, castle = null }) {
   script = castle ? Object.assign(SCRIPTS[castle].slice(), { done: new Set() }) : null;
-  const st0 = await ensureGame(color, label);
   const seq0 = await lastSeq();
+  const st0 = await ensureGame(color, label);
   const g = { label, color: st0.playingAs, startPhase: st0.phase, userMoves: 0, oppWaitTimeouts: 0, errors: [], result: null };
   if (st0.phase !== 'playing') { g.errors.push('not-playing:' + st0.phase); games.push(g); result(`${label}: game started as ${color}`, false, st0); return g; }
   result(`${label}: game started, playingAs=${st0.playingAs}`, !color || st0.playingAs === color[0], { playingAs: st0.playingAs });
@@ -170,7 +170,7 @@ async function playGame({ label, color, maxPlies = 140, extras = {}, castle = nu
   const moveEvs = evs.filter(e => e.type === 'move');
   const plies = fin.ply;
   // Replay the event stream: each 'move' must be exactly the next ply; 'takeback' truncates.
-  const seqList = st0.sanHistory.slice(); const seqErr = [];
+  const seqList = evs.some(e => e.type === 'newGame') ? [] : st0.sanHistory.slice(); const seqErr = [];
   for (const e of evs) {
     if (e.type === 'move') { if (e.ply !== seqList.length + 1) seqErr.push(`ply ${e.ply} after ${seqList.length}`); seqList.length = e.ply - 1; seqList.push(e.san); }
     else if (e.type === 'takeback') seqList.length = e.ply;
@@ -181,7 +181,7 @@ async function playGame({ label, color, maxPlies = 140, extras = {}, castle = nu
   coverage.checksReceived += opp.filter(e => e.check).length;
   const sanMatch = JSON.stringify(seqList) === JSON.stringify(fin.sanHistory);
   const takebacks = evs.filter(e => e.type === 'takeback').length;
-  g.plies = plies; g.oppEvents = opp.length; g.gameOverEvents = evs.filter(e => e.type === 'gameOver').length;
+  g.plies = plies; g.oppEvents = opp.length; const lastNew = evs.map(e => e.type).lastIndexOf('newGame'); g.gameOverEvents = evs.slice(lastNew + 1).filter(e => e.type === 'gameOver').length;
   result(`${label}: move events exactly once per ply (${moveEvs.length} events, ${plies} plies, ${takebacks} takeback evts)`, seqErr.length === 0 && sanMatch && wrongBy.length === 0, { seqErr: seqErr.slice(0, 3), sanMatch, wrongBy: wrongBy.length });
   // DOM move list vs bridge history
   const domSans = await page.evaluate(() => [...document.querySelectorAll('wc-simple-move-list .node, .move-list .node')].map(n => (n.querySelector('.node-highlight-content') || n).innerText.replace(/\s+/g, '').trim()).filter(Boolean));

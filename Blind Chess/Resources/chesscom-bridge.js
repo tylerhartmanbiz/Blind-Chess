@@ -173,18 +173,26 @@
     var n = st.ply;
     if (T.plies < 0) {
       // first sight of this board: baseline without replaying old moves
-      T.plies = n; T.lastFen = st.fen; T.overSent = !!st.gameOver;
+      T.plies = n; T.sans = st.sanHistory.slice(); T.lastFen = st.fen; T.overSent = !!st.gameOver;
       T.gameId++;
       emitStateIfChanged(st, true);
       return;
     }
-    if (n < T.plies) {
-      if (n === 0) { T.gameId++; T.overSent = false; T.pa = null; st = buildState(); post({ type: 'newGame', playingAs: st.playingAs, fen: st.fen }); }
-      else post({ type: 'takeback', ply: n, fen: st.fen, sanHistory: st.sanHistory });
-      T.plies = n;
-    } else if (T.overSent && !st.gameOver) {
-      T.overSent = false; T.gameId++;
-      post({ type: 'newGame', playingAs: st.playingAs, fen: st.fen });
+    var prevSans = T.sans || [];
+    var cp = 0;
+    while (cp < prevSans.length && cp < n && prevSans[cp] === st.sanHistory[cp]) cp++;
+    var newGame = (T.overSent && !st.gameOver) || (n === 0 && prevSans.length > 0) ||
+      (cp === 0 && prevSans.length > 0 && n > 0 && (T.overSent || T.overSince));
+    if (newGame) {
+      // Rematch / New Bot / Play: history replaced. The bot may already have played ply 1 (we are Black),
+      // so announce the new game and then emit every ply of the new history.
+      T.gameId++; T.overSent = false; T.overSince = 0; T.pa = null; st = buildState();
+      post({ type: 'newGame', playingAs: st.playingAs, fen: st.sanHistory.length ? null : st.fen });
+      T.plies = 0;
+    } else if (cp < prevSans.length) {
+      // Undo / takeback (possibly already followed by new moves): rewind to the common prefix.
+      post({ type: 'takeback', ply: cp, fen: cp === n ? st.fen : null, sanHistory: st.sanHistory.slice(0, cp) });
+      T.plies = cp;
     }
     for (var i = T.plies; i < n; i++) {
       var node = line && line[i];
@@ -194,7 +202,7 @@
         fen: node ? node.fen : st.fen, color: color, by: color === st.playingAs ? 'user' : 'opponent', check: /\+$/.test(node && node.san || ''), mate: /#$/.test(node && node.san || '')
       });
     }
-    T.plies = n; T.lastFen = st.fen;
+    T.plies = n; T.sans = st.sanHistory.slice(); T.lastFen = st.fen;
     if (st.gameOver && !T.overSent) {
       var go = st.gameOver;
       // isGameOver() flips (ModeChanged) slightly before chess.com reports *why* (GameResigned event /
