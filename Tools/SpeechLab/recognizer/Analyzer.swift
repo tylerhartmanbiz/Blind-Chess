@@ -53,9 +53,11 @@ func runST(url: URL, ctx: [String]?) async throws -> [String: Any] {
 }
 
 @available(macOS 26, iOS 26, *)
-func runDict(url: URL, ctx: [String]?) async throws -> [String: Any] {
+func runDict(url: URL, ctx: [String]?, lm: AnyObject? = nil) async throws -> [String: Any] {
     let start = Date()
-    let t = DictationTranscriber(locale: Locale(identifier: "en-US"), contentHints: [.shortForm], transcriptionOptions: [],
+    var hints: Set<DictationTranscriber.ContentHint> = [.shortForm]
+    if let cfg = lm as? SFSpeechLanguageModel.Configuration { hints.insert(.customizedLanguage(modelConfiguration: cfg)) }
+    let t = DictationTranscriber(locale: Locale(identifier: "en-US"), contentHints: hints, transcriptionOptions: [],
                                  reportingOptions: [.alternativeTranscriptions], attributeOptions: [])
     _ = await ensureAssets("dict", [t])
     let analyzer = SpeechAnalyzer(modules: [t])
@@ -97,7 +99,7 @@ func pack(_ parts: [[String]], _ start: Date) -> [String: Any] {
     return ["best": best, "nbest": nbest, "latency_ms": ms(since: start)]
 }
 
-func analyzerRecognize(kind: String, url: URL, ctx: [String]) async -> [String: Any] {
+func analyzerRecognize(kind: String, url: URL, ctx: [String], lm: AnyObject?) async -> [String: Any] {
     guard #available(macOS 26, iOS 26, *) else { return ["error": "needs macOS 26"] }
     do {
         switch kind {
@@ -105,6 +107,7 @@ func analyzerRecognize(kind: String, url: URL, ctx: [String]) async -> [String: 
         case "st_ctx": return try await runST(url: url, ctx: ctx)
         case "dict": return try await runDict(url: url, ctx: nil)
         case "dict_ctx": return try await runDict(url: url, ctx: ctx)
+        case "dict_lm": return try await runDict(url: url, ctx: ctx, lm: lm)
         default: return ["error": "bad kind"]
         }
     } catch {

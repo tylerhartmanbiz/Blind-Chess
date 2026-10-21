@@ -61,13 +61,54 @@ def islands(x, merge_ms, rel_db=32.0):
     return [(max(0, a * n - 480), min(len(x), b * n + 480)) for a, b in merged]
 
 
-def split_utterance(x, ntok):
-    for merge in (120, 90, 160, 200, 250, 70, 300):
-        for rel in (32.0, 28.0, 36.0):
-            segs = islands(x, merge, rel)
-            if len(segs) == ntok:
-                return segs
-    return None
+def frame_db(x, n=160):
+    f = x[: len(x) // n * n].reshape(-1, n)
+    e = 10 * np.log10((f ** 2).mean(axis=1) + 1e-10)
+    return np.convolve(e, np.ones(3) / 3, mode="same")
+
+
+def split_utterance(x, ntok, min_depth=8.0):
+    """Cut an utterance of ntok spelled letters / digits into ntok pieces.
+
+    Start from pause-separated islands; if there are too many, merge across the shortest pauses; if there are
+    too few, split inside islands at energy valleys at least `min_depth` dB below both neighbouring peaks.
+    Returns None unless every cut is backed by a clear pause or valley (so labels stay trustworthy)."""
+    for merge in (120, 90, 160):
+        segs = islands(x, merge)
+        if len(segs) == ntok:
+            return segs
+    segs = [list(s) for s in islands(x, 60)]
+    if not segs:
+        return None
+    while len(segs) > ntok:
+        gaps = [(segs[i + 1][0] - segs[i][1], i) for i in range(len(segs) - 1)]
+        g, i = min(gaps)
+        if g > 0.3 * SR:
+            return None
+        segs[i][1] = segs[i + 1][1]
+        del segs[i + 1]
+    e = frame_db(x)
+    cands = []  # (depth, sample index)
+    for a, b in segs:
+        fa, fb = a // 160, b // 160
+        for k in range(fa + 8, fb - 8):
+            if e[k] <= e[k - 1] and e[k] <= e[k + 1]:
+                left, right = e[max(fa, k - 40):k].max(), e[k + 1:min(fb, k + 41)].max()
+                depth = min(left, right) - e[k]
+                if depth >= min_depth:
+                    cands.append((depth, k * 160 + 80))
+    need = ntok - len(segs)
+    if len(cands) < need:
+        return None
+    cuts = sorted(c for _, c in sorted(cands, reverse=True)[:need])
+    out = []
+    for a, b in segs:
+        inner = [c for c in cuts if a < c < b]
+        pts = [a] + inner + [b]
+        out += [(pts[j], pts[j + 1]) for j in range(len(pts) - 1)]
+    if any(b - a < 0.1 * SR or b - a > 1.2 * SR for a, b in out):
+        return None
+    return out
 
 
 def load(path, raw=False):
@@ -82,6 +123,19 @@ def load(path, raw=False):
     return x
 
 
+def load_an4(path):
+    if path.endswith(".raw"):
+        return load(path, raw=True)
+    with open(path, "rb") as fh:  # NIST SPHERE: ASCII header (size on line 2), then PCM
+        head = fh.read(1024).decode("latin-1")
+        size = int(head.split("\n")[1].strip())
+        fh.seek(0)
+        hdr = fh.read(size).decode("latin-1")
+        data = fh.read()
+    big = "sample_byte_format -s2 10" in hdr
+    return np.frombuffer(data, dtype=">i2" if big else "<i2").astype(np.float64) / 32768.0
+
+
 def norm(x, peak=0.8):
     return x * (peak / (np.abs(x).max() + 1e-9))
 
@@ -90,7 +144,8 @@ def an4_units(an4):
     """-> {speaker: {"letters": {L: [audio]}, "digits": {D: [audio]}}}"""
     units = {}
     stats = {"utts": 0, "used": 0}
-    index = {frozenset(os.path.basename(f)[:-4].split("-")): f for f in glob.glob(os.path.join(an4, "wav", "*", "*", "*.raw"))}
+    files = glob.glob(os.path.join(an4, "wav", "*", "*", "*.raw")) + glob.glob(os.path.join(an4, "wav", "*", "*", "*.sph"))
+    index = {frozenset(os.path.basename(f)[:-4].split("-")): f for f in files}
     print("AN4 raw files:", len(index), flush=True)
     for tf, sub in [("etc/an4_train.transcription", "an4_clstk"), ("etc/an4_test.transcription", "an4test_clstk")]:
         p = os.path.join(an4, tf)
@@ -108,7 +163,7 @@ def an4_units(an4):
                 continue
             spk_dir = os.path.basename(os.path.dirname(f))
             stats["utts"] += 1
-            x = load(f, raw=True)
+            x = load_an4(f)
             segs = split_utterance(x, len(toks))
             if not segs:
                 continue

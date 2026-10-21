@@ -57,7 +57,7 @@ let recognizer: SFSpeechRecognizer = {
     return r
 }()
 
-func sfRecognize(url: URL, onDevice: Bool, ctx: [String]?, lm: AnyObject?, timeout: Double = 30) async -> [String: Any] {
+func sfRecognize(url: URL, onDevice: Bool, ctx: [String]?, lm: AnyObject?, timeout: Double = 20) async -> [String: Any] {
     let start = Date()
     return await withCheckedContinuation { (cont: CheckedContinuation<[String: Any], Never>) in
         let once = Once()
@@ -130,6 +130,14 @@ func jsonLine(_ obj: Any) -> String {
 var lmHandle: AnyObject?
 var lmError: String?
 
+func ensureLM() async -> AnyObject? {
+    if lmHandle == nil && lmError == nil {
+        do { lmHandle = try await buildLanguageModel() } catch { lmError = describe(error) }
+        err("custom LM: \(lmHandle != nil ? "ready" : "failed: \(lmError ?? "?")")")
+    }
+    return lmHandle
+}
+
 func recognize(config: String, url: URL) async -> [String: Any] {
     switch config {
     case "server": return await sfRecognize(url: url, onDevice: false, ctx: nil, lm: nil)
@@ -137,14 +145,13 @@ func recognize(config: String, url: URL) async -> [String: Any] {
     case "ondevice": return await sfRecognize(url: url, onDevice: true, ctx: nil, lm: nil)
     case "ondevice_ctx": return await sfRecognize(url: url, onDevice: true, ctx: chessContextualStrings, lm: nil)
     case "ondevice_lm":
-        if lmHandle == nil && lmError == nil {
-            do { lmHandle = try await buildLanguageModel() } catch { lmError = describe(error) }
-            err("custom LM: \(lmHandle != nil ? "ready" : "failed: \(lmError ?? "?")")")
-        }
-        guard let lm = lmHandle else { return ["error": "lm unavailable: \(lmError ?? "?")"] }
+        guard let lm = await ensureLM() else { return ["error": "lm unavailable: \(lmError ?? "?")"] }
         return await sfRecognize(url: url, onDevice: true, ctx: nil, lm: lm)
+    case "dict_lm":
+        guard let lm = await ensureLM() else { return ["error": "lm unavailable: \(lmError ?? "?")"] }
+        return await analyzerRecognize(kind: config, url: url, ctx: chessContextualStrings, lm: lm)
     case "st", "st_ctx", "dict", "dict_ctx":
-        return await analyzerRecognize(kind: config, url: url, ctx: chessContextualStrings)
+        return await analyzerRecognize(kind: config, url: url, ctx: chessContextualStrings, lm: nil)
     default:
         return ["error": "unknown config \(config)"]
     }
@@ -155,6 +162,8 @@ func runManifest(args: [String: String]) async {
     let configs = (args["configs"] ?? "server,ondevice").split(separator: ",").map(String.init)
     let root = URL(fileURLWithPath: args["root"] ?? ".")
     let limit = Int(args["limit"] ?? "") ?? Int.max
+    let budget = Double(args["budget"] ?? "") ?? 1e12  // seconds; stop starting new clips after this
+    var succeeded: [String: Int] = [:], consecutiveErr: [String: Int] = [:]
     // Optional per-config clip filter: --only server=clean  (env must equal value) or server=every:4
     var configFilter: [String: String] = [:]
     for f in (args["filter"] ?? "").split(separator: ";") {
@@ -169,6 +178,7 @@ func runManifest(args: [String: String]) async {
     var stats: [String: (Int, Int, Int)] = [:] // config -> (count, errors, total latency)
     for (i, line) in text.split(separator: "\n").enumerated() {
         if i >= limit { break }
+        if Date().timeIntervalSince(t0) > budget { err("budget reached after \(i) clips"); break }
         guard let data = line.data(using: .utf8),
               let clip = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let path = clip["path"] as? String else { continue }
@@ -178,9 +188,15 @@ func runManifest(args: [String: String]) async {
                 if f.hasPrefix("every:"), let k = Int(f.dropFirst(6)), i % k != 0 { continue }
                 if f.hasPrefix("env:"), (clip["env"] as? String) != String(f.dropFirst(4)) { continue }
             }
+            // circuit breaker: a config that has never worked and keeps failing is switched off
+            if succeeded[config, default: 0] == 0 && consecutiveErr[config, default: 0] >= 6 { continue }
             var row = clip
             row["config"] = config
             let r = await recognize(config: config, url: url)
+            if r["error"] == nil { succeeded[config, default: 0] += 1; consecutiveErr[config] = 0 } else {
+                consecutiveErr[config, default: 0] += 1
+                if succeeded[config, default: 0] == 0 && consecutiveErr[config, default: 0] == 6 { err("disabling \(config): \(r["error"] ?? "")") }
+            }
             for (k, v) in r { row[k] = v }
             fh.write((jsonLine(row) + "\n").data(using: .utf8)!)
             var s = stats[config] ?? (0, 0, 0)
@@ -223,7 +239,7 @@ struct SpeechLabMain {
         case "probe":
             let url = URL(fileURLWithPath: argv[2])
             await analyzerProbe()
-            for c in ["server", "server_ctx", "ondevice", "ondevice_ctx", "ondevice_lm", "st", "st_ctx", "dict", "dict_ctx"] {
+            for c in ["server", "server_ctx", "ondevice", "ondevice_ctx", "ondevice_lm", "st", "st_ctx", "dict", "dict_ctx", "dict_lm"] {
                 let r = await recognize(config: c, url: url)
                 print("PROBE \(c): \(jsonLine(r))")
             }

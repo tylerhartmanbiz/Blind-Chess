@@ -1,16 +1,24 @@
 name: speech-lab
 
+# SpeechLab: measure Apple speech recognition on spoken chess moves (see Tools/SpeechLab/README.md).
+# corpus-linux builds Piper + real-human audio; recognize (4 macOS shards) adds macOS `say` voices, applies the
+# acoustic environments and runs every recognizer config; publish merges the shards into a draft release asset.
+
 on:
   push:
     branches: [claude/exciting-edison-oxy0hj]
     paths:
       - 'Tools/SpeechLab/**'
       - '!Tools/SpeechLab/**.md'
+      - '!Tools/SpeechLab/analyze.py'
       - '.github/workflows/speech-lab.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  SHARDS: 4
 
 jobs:
   probe-mac:
@@ -40,19 +48,9 @@ jobs:
           sudo profiles list 2>&1 | head; ls /Library/Managed\ Preferences 2>&1 | head
           defaults read /Library/Preferences/com.apple.assistant.support 2>&1 | head
           pgrep -lf -i 'speech|assistant|dictation' | head -20
-      - name: Probe before enabling dictation
-        run: perl -e 'alarm 120; exec @ARGV' build/speechlab probe /tmp/t2.wav 2>&1 | grep -E 'auth=|PROBE (server|ondevice|st|dict):|reserve|assets' || true
       - name: Enable Siri + Dictation and probe again
         run: |
-          defaults write com.apple.assistant.support "Dictation Enabled" -bool true
-          defaults write com.apple.assistant.support "Assistant Enabled" -bool true
-          defaults write com.apple.assistant.support "Siri Data Sharing Opt-In Status" -int 2
-          defaults write com.apple.HIToolbox AppleDictationAutoEnable -int 1
-          defaults write com.apple.Siri UserHasDeclinedEnable -bool false
-          defaults write com.apple.Siri StatusMenuVisible -bool false
-          defaults write com.apple.speech.recognition.AppleSpeakableItems SpeakableItemsEnabled -bool false
-          sudo defaults write /Library/Preferences/com.apple.assistant.support "Dictation Enabled" -bool true
-          killall -9 assistantd corespeechd localspeechrecognition speechrecognitiond SiriNCService 2>/dev/null || true
+          Tools/SpeechLab/scripts/enable_dictation.sh
           perl -e 'alarm 200; exec @ARGV' build/speechlab probe /tmp/t2.wav 2>&1 | grep -vE 'Created directory' || true
           perl -e 'alarm 200; exec @ARGV' build/speechlab probe /tmp/t1.wav 2>&1 | grep -E 'PROBE' || true
       - name: iOS simulator attempt
@@ -91,16 +89,14 @@ jobs:
                    en_US/ryan/high/en_US-ryan-high; do
             (cd models && curl -sfL -O $B/$m.onnx -O $B/$m.onnx.json || echo "MISSING $m") &
           done
-          (curl -sfL http://www.speech.cs.cmu.edu/databases/an4/an4_raw.bigendian.tar.gz | tar xz && echo AN4 ok || echo "AN4 FAILED") &
+          (curl -sfL https://dldata-public.s3.us-east-2.amazonaws.com/an4_sphere.tar.gz | tar xz && echo AN4 ok || echo "AN4 FAILED") &
           (git clone -q --depth 1 https://github.com/Jakobovski/free-spoken-digit-dataset fsdd && echo FSDD ok) &
           (mkdir -p sc && curl -sfL http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz | tar xz -C sc --wildcards '*one/*' '*two/*' '*three/*' '*four/*' '*five/*' '*six/*' '*seven/*' '*eight/*' 2>/dev/null; echo "SC $(ls sc | wc -l) dirs") &
           for z in PCAFETER STRAFFIC DLIVING; do
             (curl -sfL -o demand/$z.zip https://zenodo.org/records/1227121/files/${z}_16k.zip && unzip -q -o demand/$z.zip "$z/ch01.wav" -d demand && echo "DEMAND $z ok") &
           done
           wait
-          ls models; ls; du -sh *
-          head -3 an4/etc/an4_train.transcription || find . -maxdepth 3 -name '*.transcription'
-          python3 -c "import json; m=json.load(open('models/en_US-l2arctic-medium.onnx.json'))['speaker_id_map']; print('l2arctic speakers', list(m)[:30])" || true
+          ls models; du -sh *
       - name: Build corpus
         run: |
           C=Tools/SpeechLab/corpus; mkdir -p out/audio
@@ -117,3 +113,68 @@ jobs:
           path: out
           retention-days: 7
           compression-level: 1
+
+  recognize:
+    needs: corpus-linux
+    runs-on: macos-26
+    timeout-minutes: 85
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build recognizer
+        run: Tools/SpeechLab/recognizer/build.sh $PWD/build macos
+      - name: Authorize speech recognition (TCC) + enable Siri/Dictation
+        run: |
+          python3 Tools/SpeechLab/scripts/tcc_grant.py kTCCServiceSpeechRecognition $PWD/build/speechlab com.blindchess.speechlab /bin/bash /opt/hca/hosted-compute-agent
+          Tools/SpeechLab/scripts/enable_dictation.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: corpus-linux
+          path: out
+      - name: macOS say voices + environments
+        run: |
+          python3 -m venv /tmp/venv && /tmp/venv/bin/pip install -q numpy scipy soundfile audiotsm
+          C=Tools/SpeechLab/corpus
+          /tmp/venv/bin/python $C/make_say.py --phrases out/phrases.jsonl --out out/audio --manifest out/say_clean.jsonl --shard ${{ matrix.shard }} --shards $SHARDS
+          /tmp/venv/bin/python $C/augment.py --in out/say_clean.jsonl --root out/audio --noise out/noise --out out/say_manifest.jsonl --per-clip 1 | tail -2
+          /tmp/venv/bin/python Tools/SpeechLab/scripts/shard.py --shard ${{ matrix.shard }} --shards $SHARDS out/manifest_linux.jsonl out/say_manifest.jsonl > out/my.jsonl
+          wc -l out/my.jsonl
+      - name: Recognize
+        run: |
+          mkdir -p res
+          perl -e 'alarm 4200; exec @ARGV' build/speechlab run --manifest out/my.jsonl --root out/audio --out res/results-${{ matrix.shard }}.jsonl \
+            --configs dict,dict_ctx,dict_lm,ondevice,ondevice_ctx,ondevice_lm,server,server_ctx,st \
+            --filter "server=every:3;server_ctx=every:3" --budget 3300 2> res/log-${{ matrix.shard }}.txt || echo "exit=$?"
+          grep -E 'disabling|custom LM|assets|reserve|budget|done rows' res/log-${{ matrix.shard }}.txt; tail -3 res/log-${{ matrix.shard }}.txt
+          wc -l res/*.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-${{ matrix.shard }}
+          path: res
+          retention-days: 7
+
+  publish:
+    needs: recognize
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          path: res
+          merge-multiple: true
+      - name: Merge + attach to a draft release (fetched by the SpeechLab maintainer, then deleted)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la res; cat res/results-*.jsonl > results.jsonl; wc -l results.jsonl
+          tar czf speechlab-results.tgz results.jsonl res/log-*.txt
+          gh release create "speechlab-${{ github.run_id }}" --repo ${{ github.repository }} --draft \
+            --title "SpeechLab results ${{ github.run_id }}" --notes "Raw Apple recognizer transcripts (draft, temporary)." speechlab-results.tgz

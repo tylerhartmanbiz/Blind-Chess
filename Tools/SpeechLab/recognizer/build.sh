@@ -9,7 +9,7 @@ mkdir -p "$OUT"
 if [ "$PLATFORM" = iossim ]; then
   SDKARGS=(-sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" -target arm64-apple-ios26.0-simulator)
 else
-  SDKARGS=()
+  SDKARGS=(-sdk "$(xcrun --sdk macosx --show-sdk-path)")
 fi
 FLAGS=(-O -parse-as-library -swift-version 5 "${SDKARGS[@]}" -framework Speech -framework AVFoundation)
 OPT=(LM Analyzer Reserve)
