@@ -111,7 +111,7 @@ public struct Square: Hashable, Comparable, CustomStringConvertible {
     public var description: String { name }
     public var isLight: Bool { (file + rank) % 2 == 1 }
 
-    public static let all: [Square] = (0..<64).map(Square.init(index:))
+    public static let all: [Square] = (0..<64).map { Square(index: $0) }
     public static func < (lhs: Square, rhs: Square) -> Bool { lhs.index < rhs.index }
 
     static let fileLetters: [Character] = Array("abcdefgh")

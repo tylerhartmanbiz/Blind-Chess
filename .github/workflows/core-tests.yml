@@ -34,7 +34,7 @@ jobs:
       - name: Type-check core as app code
         run: |
           sudo xcode-select -s /Applications/Xcode_26.6.app
-          xcrun swiftc -typecheck -swift-version 5 \
+          xcrun swiftc -typecheck -swift-version 5 -warnings-as-errors \
             -default-isolation MainActor \
             -enable-upcoming-feature InferIsolatedConformances \
             -enable-upcoming-feature NonisolatedNonsendingByDefault \

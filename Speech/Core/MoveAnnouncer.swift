@@ -51,7 +51,7 @@ public enum MoveAnnouncer {
 
     /// "Your queen is on D 1.", "Your knights are on B 1 and G 1.", "Black has no queen."
     public static func locate(_ kind: PieceKind, of color: PieceColor, in position: Position, userColor: PieceColor) -> String {
-        let squares = position.squares(of: Piece(color, kind)).map(spokenSquare)
+        let squares = position.squares(of: Piece(color, kind)).map { spokenSquare($0) }
         let owner = color == userColor ? "Your" : "The \(color.name)"
         switch squares.count {
         case 0:
@@ -108,7 +108,7 @@ public enum MoveAnnouncer {
 
     private static func pieceGroups(of color: PieceColor, in position: Position) -> String {
         PieceKind.allCases.reversed().compactMap { kind -> String? in
-            let squares = position.squares(of: Piece(color, kind)).map(spokenSquare)
+            let squares = position.squares(of: Piece(color, kind)).map { spokenSquare($0) }
             guard !squares.isEmpty else { return nil }
             let name = squares.count == 1 ? kind.name : plural(kind)
             return "\(name) \(MoveResolver.listed(squares, conjunction: "and"))"

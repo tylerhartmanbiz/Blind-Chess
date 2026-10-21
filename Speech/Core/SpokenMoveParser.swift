@@ -31,10 +31,10 @@ public enum SpokenMoveParser {
 
     static func moveInterpretations(_ casedWords: [String]) -> [SpokenInterpretation] {
         // Only the last attempt counts; if the speaker ends on "no wait" (nothing after it) there is no move.
-        let segments = segmentsAfterCorrections(casedWords).map(SpokenVocabulary.tokens(casedWords:))
+        let segments = segmentsAfterCorrections(casedWords).map { SpokenVocabulary.tokens(casedWords: $0) }
         guard let last = segments.last else { return [] }
         var found = interpretations(of: last)
-        if let piece = segments.dropLast().reversed().lazy.compactMap(firstPiece(in:)).first {
+        if let piece = segments.dropLast().reversed().compactMap({ firstPiece(in: $0) }).first {
             found = inherit(piece, into: found)
         }
         return found.map { SpokenInterpretation(intent: .move($0.intent), cost: $0.cost, usesSoundAlike: $0.soundAlike) }
