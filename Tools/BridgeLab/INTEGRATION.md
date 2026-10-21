@@ -101,10 +101,11 @@ result. Feed `state().fen` to the Swift `Position` for disambiguation, and send 
 
 ## 6. Bot detection
 
-- WebKit (the engine WKWebView uses) with the iPhone UA: **no challenge**, headless on both Linux and macOS
-  runners, across many page loads.
-- Headless Chromium: Cloudflare "Just a moment..." challenge (HTTP 403). Headed Chromium under xvfb loaded
-  normally. This only matters for CI. The app's WKWebView behaves like the WebKit case.
+- WebKit (the engine WKWebView uses) with the iPhone 13 profile: **no challenge** in any run, headless, on
+  both ubuntu-latest and macos-latest runners (about 12 page loads, including reloads).
+- Chromium headless: Cloudflare "Just a moment..." (HTTP 403) on the first request (1 of 1 runs).
+  Chromium headed under xvfb: loaded normally in 2 of 3 runs and was challenged in 1. This only matters for CI.
+  Use WebKit, which is also what the app runs.
 - No login was needed for anything above.
 
 ## 7. Re-running the lab
