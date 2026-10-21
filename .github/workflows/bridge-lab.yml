@@ -1,0 +1,49 @@
+name: bridge-lab
+on:
+  push:
+    paths:
+      - 'Tools/BridgeLab/**'
+      - 'Blind Chess/Resources/chesscom-bridge.js'
+      - '.github/workflows/bridge-lab.yml'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'explore | test'
+        default: 'test'
+concurrency:
+  group: bridge-lab
+  cancel-in-progress: true
+jobs:
+  lab:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, profile: webkit-iphone }
+          - { os: ubuntu-latest, profile: chromium-iphone }
+          - { os: macos-latest, profile: webkit-iphone }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install Playwright
+        working-directory: Tools/BridgeLab
+        run: |
+          npm install --no-audit --no-fund playwright@1.48.2 chess.js@1.0.0
+          npx playwright install --with-deps ${{ startsWith(matrix.profile, 'webkit') && 'webkit' || 'chromium' }}
+      - name: Run
+        working-directory: Tools/BridgeLab
+        run: |
+          MODE=$(cat MODE 2>/dev/null || echo test)
+          [ -n "${{ github.event.inputs.mode }}" ] && MODE="${{ github.event.inputs.mode }}"
+          echo "mode=$MODE"
+          if [ "$RUNNER_OS" = "Linux" ]; then XV="xvfb-run -a"; else XV=""; fi
+          $XV node $MODE.mjs ${{ matrix.profile }} out-${{ matrix.os }}-${{ matrix.profile }} || echo "SCRIPT_EXIT=$?"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lab-${{ matrix.os }}-${{ matrix.profile }}
+          path: Tools/BridgeLab/out-*
+          retention-days: 7
