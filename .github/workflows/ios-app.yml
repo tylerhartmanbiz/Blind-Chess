@@ -87,13 +87,13 @@ jobs:
       - name: Launch via simctl, record video, screenshots, logs
         run: |
           xcrun simctl spawn "$UDID" log stream --level debug --style compact \
-            --predicate 'process == "Blind Chess" OR process CONTAINS[c] "speech" OR process == "assistantd" OR subsystem CONTAINS[c] "speech"' \
+            --predicate 'process == "Blind Chess" OR process CONTAINS[c] "speechrecognition" OR (process == "assistantd" AND messageType >= 16)' \
             > "$OUT/sim_log_stream.txt" 2>&1 &
           echo $! > "$OUT/logstream.pid"
           xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/launch.mp4" > "$OUT/record1.log" 2>&1 &
           REC=$!
           sleep 2
-          xcrun simctl launch --terminate-running-process --stdout="$OUT/app_stdout_simctl.log" --stderr="$OUT/app_stdout_simctl.log" "$UDID" "$BUNDLE_ID"
+          SIMCTL_CHILD_BLINDCHESS_LOG_FILE="$OUT/app_stdout_simctl.log" xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"
           for t in 3 10 20 35; do
             sleep $(( t - ${prev:-0} )); prev=$t
             xcrun simctl io "$UDID" screenshot "$OUT/screens/simctl_${t}s.png" >/dev/null 2>&1 || true
@@ -124,6 +124,7 @@ jobs:
           echo "--- voice results:"; cat "$OUT/lab/voice/summary.txt" 2>/dev/null || ls -la "$OUT/lab" "$OUT/lab/voice" 2>/dev/null || true
           echo "--- app stdout (UI tests):"; tail -60 "$OUT/lab/app_stdout_uitest.log" 2>/dev/null || true
           echo "--- chess.com web texts:"; head -40 "$OUT/lab/chesscom_web_texts.txt" 2>/dev/null || true
+          echo "speech auth (app stdout): $(grep -h -m1 'Speech recognition' "$OUT"/app_stdout_*.log "$OUT"/lab/app_stdout_uitest.log 2>/dev/null | head -1)" | tee -a "$OUT/summary.txt"
           echo "UITEST_RC=$RC" | tee -a "$OUT/summary.txt"
 
       - name: Summary
@@ -136,6 +137,9 @@ jobs:
             echo "### Voice"; echo '```'; cat "$OUT/lab/voice/summary.txt" 2>/dev/null || echo "no voice results"; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           grep -iE "recogni|speech|audio|error" "$OUT/sim_log_stream.txt" 2>/dev/null | grep -v "^$" | tail -60 || true
+          # Downscaled screenshots as base64 in the log, for agents that cannot download artifacts
+          # (decode with: python3 Tools/AppLab/extract_screens.py job.log outdir).
+          Tools/AppLab/print_screens.sh "$OUT" || true
           (cd "$OUT" && zip -qry UITests.xcresult.zip UITests.xcresult && rm -rf UITests.xcresult) || true
 
       - uses: actions/upload-artifact@v4
