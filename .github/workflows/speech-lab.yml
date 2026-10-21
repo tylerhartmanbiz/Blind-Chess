@@ -1,0 +1,132 @@
+name: speech-lab
+
+on:
+  push:
+    branches: [claude/exciting-edison-oxy0hj]
+    paths:
+      - 'Tools/SpeechLab/**'
+      - '!Tools/SpeechLab/**.md'
+      - '.github/workflows/speech-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe-mac:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: System info
+        run: |
+          sw_vers; uname -m; sysctl -n hw.ncpu; xcodebuild -version; ls /Applications | grep -i xcode
+          csrutil status || true
+          xcrun simctl list runtimes || true
+          echo "== English say voices"; say -v '?' | grep -E 'en_|en-' || true
+          echo "== all voice count: $(say -v '?' | wc -l)"
+      - name: Speech SDK interface
+        run: |
+          SDK=$(xcrun --show-sdk-path)
+          F=$(ls $SDK/System/Library/Frameworks/Speech.framework/Modules/Speech.swiftmodule/*.swiftinterface | grep arm64e-apple-macos | head -1)
+          echo "$F"
+          grep -nE 'class SpeechTranscriber|class DictationTranscriber|public init\(locale|public convenience init\(locale|enum ContentHint|ContextualStringsTag|contextualStrings|func analyzeSequence|func finalizeAndFinish|func setContext|class SFCustomLanguageModelData|struct PhraseCount|func export|prepareCustomLanguageModel|func insert|TemplatePhraseCountGenerator|public var alternatives|static var isAvailable|struct Preset|static let ' "$F" | head -150
+      - name: Build recognizer
+        run: Tools/SpeechLab/recognizer/build.sh $PWD/build
+      - name: Test clips + ancestry
+        run: |
+          say -v Samantha -o /tmp/t1.wav --data-format=LEI16@16000 "knight to f3"
+          say -v Daniel -o /tmp/t2.wav --data-format=LEI16@16000 "h8"
+          afinfo /tmp/t1.wav | head -5
+          p=$$; while [ "$p" -gt 1 ]; do ps -o pid=,ppid=,comm= -p $p; p=$(ps -o ppid= -p $p | tr -d ' '); done | tee /tmp/ancestry.txt
+          launchctl procinfo $$ 2>/dev/null | grep -i responsible || sudo launchctl procinfo $$ | grep -iE 'responsible|program' || true
+      - name: Run 1 - CLI, no TCC change
+        run: perl -e 'alarm 150; exec @ARGV' build/speechlab probe /tmp/t1.wav || echo "exit=$?"
+      - name: TCC state + grant
+        run: |
+          for db in "$HOME/Library/Application Support/com.apple.TCC/TCC.db" "/Library/Application Support/com.apple.TCC/TCC.db"; do
+            echo "== $db"; ls -l "$db" || true
+            sudo sqlite3 "$db" "select service, client, auth_value from access where service like '%Speech%' or service like '%Microphone%' or service like '%AllFiles%'" 2>&1 | head -30
+          done
+          CLIENTS="$PWD/build/speechlab com.blindchess.speechlab"
+          for c in $(awk '{print $3}' /tmp/ancestry.txt); do CLIENTS="$CLIENTS $(command -v $c 2>/dev/null || echo $c)"; done
+          CLIENTS="$CLIENTS /bin/bash /bin/zsh /bin/sh /usr/bin/perl"
+          for c in /Users/runner/actions-runner/bin/Runner.Listener /Users/runner/actions-runner/bin/Runner.Worker /usr/local/opt/runner/provisioner/provisioner /opt/runner/provisioner/provisioner; do [ -e $c ] && CLIENTS="$CLIENTS $c"; done
+          echo "clients: $CLIENTS"
+          python3 Tools/SpeechLab/scripts/tcc_grant.py kTCCServiceSpeechRecognition $CLIENTS
+          sudo python3 Tools/SpeechLab/scripts/tcc_grant.py kTCCServiceSpeechRecognition $CLIENTS
+          sudo python3 Tools/SpeechLab/scripts/tcc_grant.py kTCCServiceMicrophone $CLIENTS
+      - name: Run 2 - CLI after TCC grant
+        run: perl -e 'alarm 240; exec @ARGV' build/speechlab probe /tmp/t1.wav || echo "exit=$?"
+      - name: Run 3 - .app via open
+        run: |
+          perl -e 'alarm 240; exec @ARGV' open -W -n --stdout /tmp/app-out.txt --stderr /tmp/app-err.txt build/SpeechLab.app --args probe /tmp/t2.wav || echo "exit=$?"
+          cat /tmp/app-out.txt; tail -20 /tmp/app-err.txt
+      - name: Throughput test (24 clips)
+        run: |
+          mkdir -p /tmp/tp; : > /tmp/tp/m.jsonl; i=0
+          for v in Samantha Daniel Karen Moira Rishi Tessa; do for t in "e4" "knight to f3" "castle kingside" "h8"; do
+            i=$((i+1)); say -v $v -o /tmp/tp/c$i.wav --data-format=LEI16@16000 "$t" || continue
+            echo "{\"clip_id\":\"c$i\",\"path\":\"c$i.wav\",\"expected_text\":\"$t\",\"speaker\":\"$v\",\"env\":\"clean\"}" >> /tmp/tp/m.jsonl
+          done; done
+          perl -e 'alarm 600; exec @ARGV' build/speechlab run --manifest /tmp/tp/m.jsonl --root /tmp/tp --out /tmp/tp/out.jsonl --configs ondevice,ondevice_ctx,ondevice_lm,server,st,dict || echo "exit=$?"
+          cut -c1-400 /tmp/tp/out.jsonl
+
+  probe-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Piper + libritts_r
+        run: |
+          pip install -q piper-tts 2>&1 | tail -2; pip show piper-tts | head -3
+          python3 -c "import piper, inspect; print(dir(piper)); from piper import PiperVoice; print(inspect.signature(PiperVoice.synthesize)); print([m for m in dir(PiperVoice) if not m.startswith('_')])"
+          B=https://huggingface.co/rhasspy/piper-voices/resolve/main
+          mkdir -p v && cd v
+          for m in en/en_US/libritts_r/medium/en_US-libritts_r-medium en/en_GB/vctk/medium/en_GB-vctk-medium en/en_US/arctic/medium/en_US-arctic-medium; do
+            curl -sfL -O $B/$m.onnx -O $B/$m.onnx.json && echo "got $m" || echo "MISSING $m"
+          done
+          ls -la
+          python3 - <<'PY'
+          import json
+          for f in ["en_US-libritts_r-medium.onnx.json","en_GB-vctk-medium.onnx.json","en_US-arctic-medium.onnx.json"]:
+              try:
+                  c=json.load(open(f)); m=c.get("speaker_id_map",{}); print(f, c.get("num_speakers"), list(m.items())[:30])
+              except Exception as e: print(f, e)
+          PY
+          curl -s "https://huggingface.co/api/models/rhasspy/piper-voices/tree/main/en/en_GB" | python3 -c "import json,sys; print([x['path'] for x in json.load(sys.stdin)])"
+          curl -s "https://huggingface.co/api/models/rhasspy/piper-voices/tree/main/en/en_US" | python3 -c "import json,sys; print([x['path'] for x in json.load(sys.stdin)])"
+      - name: Piper synth test
+        run: |
+          cd v
+          python3 - <<'PY'
+          import wave, time
+          from piper import PiperVoice
+          v = PiperVoice.load("en_US-libritts_r-medium.onnx")
+          t=time.time()
+          try:
+              from piper import SynthesisConfig
+              with wave.open("t.wav","wb") as w:
+                  v.synthesize_wav("knight to f3", w, syn_config=SynthesisConfig(speaker_id=5, length_scale=1.0))
+              print("new API ok")
+          except ImportError:
+              with wave.open("t.wav","wb") as w:
+                  v.synthesize("knight to f3", w, speaker_id=5)
+              print("old API ok")
+          print("secs", time.time()-t)
+          PY
+          ls -la t.wav
+      - name: Human datasets reachability
+        run: |
+          for u in https://github.com/Jakobovski/free-spoken-digit-dataset \
+                   http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz \
+                   https://zenodo.org/records/1227121/files/PCAFETER_16k.zip \
+                   https://www.openslr.org/resources/12/test-clean.tar.gz \
+                   https://archive.ics.uci.edu/static/public/54/isolet.zip \
+                   https://github.com/soerenab/AudioMNIST ; do
+            echo "$(curl -sIL -o /dev/null -w '%{http_code} %{size_download} %{url_effective}' $u) <- $u"
+            curl -sIL $u | grep -i content-length | tail -1
+          done
+          for q in alphabet letters isolet spelling chess "speech commands" "spoken digit" "spoken letter"; do
+            echo "== HF datasets search: $q"
+            curl -s "https://huggingface.co/api/datasets?search=$(echo $q | sed 's/ /%20/g')&limit=40" | python3 -c "import json,sys; print([d['id'] for d in json.load(sys.stdin)])"
+          done
