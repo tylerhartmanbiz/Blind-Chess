@@ -29,7 +29,8 @@ final class MoveResolverTests: XCTestCase {
             (["a knight to c3"], "Nc3"), (["aitch four"], "h4"), (["see four"], "c4"), (["f3"], "f3"),
             (["knight to f free"], "Nf3"), (["e to e4"], "e4"), (["g1 f3"], "Nf3"), (["e2e4"], "e4"),
             (["knight f3 no wait c3"], "Nc3"), (["e4 no d4"], "d4"), (["knight f3 no wait e4"], "e4"),
-            (["um okay let's play e4 please"], "e4"), (["pawn to d for"], "d4"), (["pawn to d two"], "!D 2 has your own pawn on it."),
+            (["um okay let's play e4 please"], "e4"), (["Upon to E4"], "e4"), (["up on to e4"], "e4"),
+            (["a pawn to e4"], "e4"), (["Night to F3"], "Nf3"), (["pawn to d for"], "d4"), (["pawn to d two"], "!D 2 has your own pawn on it."),
             (["knight f5"], "!No knight can reach F 5."), (["e5"], "!Nothing can reach E 5."),
             (["e2"], "!E 2 has your own pawn on it."), (["castle"], "!There are pieces in the way of castling."),
             (["knight takes e5"], "!There's nothing to capture on E 5."), (["bishop to c4"], "!No bishop can reach C 4."),
@@ -157,9 +158,12 @@ final class MoveResolverTests: XCTestCase {
         ])
         check("4k3/8/8/8/8/8/5r2/R3K2R w KQ - 0 1", [
             (["castle kingside"], "!You can't castle through or into check."), (["castle"], "O-O-O"),
-            (["king to f1"], "!That square is attacked."), (["king to g1"], "~Kd1"),
+            (["king to f1"], "!That square is attacked."),
+            (["king to g1"], "!You can't castle through or into check."),
         ])
-        check("4k3/8/8/8/8/8/8/4K2R w - - 0 1", [(["castle"], "!You can no longer castle.")])
+        check("4k3/8/8/8/8/8/8/4K2R w - - 0 1", [
+            (["castle"], "!You can no longer castle."), (["king to g1"], "!You can no longer castle kingside."),
+        ])
         check("4k3/8/8/8/8/8/8/4K2R w K - 0 1", [
             (["castle queenside"], "!You can no longer castle queenside."), (["castle"], "O-O"),
             (["queen d1"], "!You have no queen."), (["knight f3"], "!You have no knight."),
@@ -191,6 +195,15 @@ final class MoveResolverTests: XCTestCase {
         XCTAssertTrue(defaulted.defaultedPromotion)
         guard case .move(let chosen) = MoveResolver.resolve(["a8 queen"], in: board) else { return XCTFail() }
         XCTAssertFalse(chosen.defaultedPromotion)
+    }
+
+    func testButtonIntent() {
+        let board = position(twoKnightsToD2)
+        func button(_ intent: MoveIntent) -> String { render(MoveResolver.resolve(intent, in: board), in: board) }
+        XCTAssertEqual(button(MoveIntent(piece: .knight, toFile: 3, toRank: 1)), "?Nbd2|Nfd2")
+        XCTAssertEqual(button(MoveIntent(piece: .knight, fromFile: 1, toFile: 3, toRank: 1)), "Nbd2")
+        XCTAssertEqual(button(MoveIntent(piece: .knight, toFile: 5, toRank: 4)), "!No knight can reach F 5.")
+        XCTAssertEqual(button(MoveIntent(toFile: 4, toRank: 1)), "Ke2")
     }
 
     func testCastlingChoices() {

@@ -7,6 +7,7 @@
 //  Public API:
 //    MoveResolver.resolve(_ transcripts: [String], in position: Position) -> Resolution
 //    MoveResolver.resolveClarification(_ transcripts: [String], candidates: [Move], in position: Position) -> Resolution
+//    MoveResolver.resolve(_ intent: MoveIntent, in position: Position) -> Resolution     (button input, no speech)
 //    Resolution: .move(ResolvedMove) | .needsClarification(Clarification) | .command(SpokenCommand)
 //                | .illegal(reason: String) | .notUnderstood
 //
@@ -92,9 +93,23 @@ public enum MoveResolver {
             return .needsClarification(Clarification(candidates: choice, question: question(for: choice, in: position)))
         }
 
+        // "King to g1" when castling is illegal: say why rather than guessing a sound-alike.
+        if let reading = literal.first, castleSide(meantBy: reading.intent, in: position) != nil {
+            return .illegal(reason: explain(reading.intent, in: position))
+        }
         if let guess = soundAlikeGuess(moves.filter(\.soundAlike), legal: legal, in: position) { return guess }
         let explained = literal.first ?? moves[0]
         return .illegal(reason: explain(explained.intent, in: position))
+    }
+
+    /// Resolves a move described without speech (the button pad): one move, a question, or why it is illegal.
+    public static func resolve(_ intent: MoveIntent, in position: Position) -> Resolution {
+        let choice = choose(from: position.legalMoves().filter(intent.matches), intent: intent)
+        switch choice.count {
+        case 0: return .illegal(reason: explain(intent, in: position))
+        case 1: return resolved(choice[0], intent: intent, cost: 0, soundAlike: false, in: position)
+        default: return .needsClarification(Clarification(candidates: choice, question: question(for: choice, in: position)))
+        }
     }
 
     /// Resolves an answer to a clarification question ("the one on b1", "b", "from g1", "kingside").
@@ -176,6 +191,7 @@ public enum MoveResolver {
     static func explain(_ intent: MoveIntent, in position: Position) -> String {
         let me = position.sideToMove
         if intent.isCastle { return explainCastling(intent.castleSide, in: position) }
+        if let side = castleSide(meantBy: intent, in: position) { return explainCastling(side, in: position) }
 
         let pseudo = position.pseudoLegalMoves().filter(intent.matches)
         if let blocked = pseudo.first {
@@ -209,6 +225,19 @@ public enum MoveResolver {
         let verb = intent.isCapture ? "capture on" : "reach"
         if intent.piece == nil { return "Nothing can \(verb) \(MoveAnnouncer.spokenSquare(target))." }
         return "No \(pieceName) can \(verb) \(MoveAnnouncer.spokenSquare(target))."
+    }
+
+    /// The castling a king move describes: the king still on its e-file home square, moving two files along it.
+    private static func castleSide(meantBy intent: MoveIntent, in position: Position) -> CastleSide? {
+        let me = position.sideToMove
+        let home = Square(file: 4, rank: me == .white ? 0 : 7)!
+        guard intent.piece == .king, !intent.isCapture, position[home] == Piece(me, .king),
+              let target = intent.target, target.rank == home.rank else { return nil }
+        switch target.file {
+        case 6: return .kingside
+        case 2: return .queenside
+        default: return nil
+        }
     }
 
     private static func explainCastling(_ side: CastleSide?, in position: Position) -> String {

@@ -200,7 +200,7 @@ enum SpokenVocabulary {
     private static let natoWords: Set<String> = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"]
 
     private static let phraseReplacements: [([String], String)] = [
-        (["king", "side"], "kingside"), (["kings", "side"], "kingside"), (["king", "sight"], "kingside"),
+        (["up", "on"], "upon"), (["king", "side"], "kingside"), (["kings", "side"], "kingside"), (["king", "sight"], "kingside"),
         (["queen", "side"], "queenside"), (["queens", "side"], "queenside"),
         (["check", "mate"], "checkmate"), (["en", "passant"], "enpassant"), (["on", "passant"], "enpassant"),
         (["in", "passing"], "enpassant"), (["o", "o", "o"], "ooo"), (["o", "o"], "oo"),
@@ -214,7 +214,7 @@ enum SpokenVocabulary {
         }
 
         add(["pawn", "pawns", "pon", "paun", "porn", "pond", "palm", "p", "pee"], .piece(.pawn))
-        add(["prawn", "pan", "paw", "pawned", "pound"], .piece(.pawn), cost: 0.4)
+        add(["prawn", "pan", "paw", "pawned", "pound", "upon", "apon"], .piece(.pawn), cost: 0.4)
         add(["knight", "knights", "night", "nights", "nite", "knite", "n", "en"], .piece(.knight))
         add(["knife", "nate", "neat", "m", "em"], .piece(.knight), cost: 0.5)
         add(["bishop", "bishops", "bish", "bishup", "bishep"], .piece(.bishop))
