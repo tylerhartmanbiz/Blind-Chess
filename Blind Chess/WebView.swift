@@ -2,91 +2,60 @@
 //  WebView.swift
 //  Blind Chess
 //
-//  Created by Tyler Hartman on 8/13/26.
+//  chess.com's "play the computer" page with the bridge script injected at document start (page content world).
 //
 
 import SwiftUI
 import WebKit
 
-struct WebView: UIViewRepresentable {
-    let url: URL
-    @Binding var webView: WKWebView?
-    
+struct ChessWebView: UIViewRepresentable {
+    static let url = URL(string: "https://www.chess.com/play/computer")!
+
+    let bridge: ChessComBridge
+
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        
-        // Configure WebView preferences for better performance
-        config.preferences.javaScriptEnabled = true
-        config.preferences.javaScriptCanOpenWindowsAutomatically = false
-        
-        // Allow inline media playback
         config.allowsInlineMediaPlayback = true
-        
-        // Suppress rendering until content is loaded
-        config.suppressesIncrementalRendering = false
-        
+        let scripts = config.userContentController
+        scripts.addUserScript(WKUserScript(source: ChessComBridge.script, injectionTime: .atDocumentStart,
+                                           forMainFrameOnly: true))
+        scripts.add(WeakScriptHandler(bridge), name: ChessComBridge.handlerName)
+
         let webView = WKWebView(frame: .zero, configuration: config)
-        
-        // Set navigation delegate first
         webView.navigationDelegate = context.coordinator
-        
-        // Allow back/forward gestures
-        webView.allowsBackForwardNavigationGestures = false
-        
-        // Set to opaque for better performance
-        webView.isOpaque = true
+        webView.isOpaque = false
         webView.backgroundColor = .black
-        
-        DispatchQueue.main.async {
-            self.webView = webView
-        }
-        
-        // Create and load request
-        var request = URLRequest(url: url)
-        request.cachePolicy = .returnCacheDataElseLoad
-        request.timeoutInterval = 30
-        
-        webView.load(request)
-        
+        bridge.webView = webView
+        webView.load(URLRequest(url: Self.url))
         return webView
     }
-    
-    func updateUIView(_ uiView: WKWebView, context: Context) {
-        // No need to update
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, WKNavigationDelegate {
-        let parent: WebView
-        
-        init(_ parent: WebView) {
-            self.parent = parent
+
+    func updateUIView(_ webView: WKWebView, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(bridge: bridge) }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        private let bridge: ChessComBridge
+
+        init(bridge: ChessComBridge) {
+            self.bridge = bridge
         }
-        
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            // Inject CSS to make board bigger
-            webView.evaluateJavaScript(ChessJSBridge.injectionScript()) { result, error in
-                if let error = error {
-                    print("❌ CSS injection error: \(error.localizedDescription)")
-                } else {
-                    print("✅ CSS injected successfully")
-                }
-            }
+            Log.info("chess.com loaded: \(webView.url?.absoluteString ?? "-")")
         }
-        
+
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            print("❌ Navigation failed: \(error.localizedDescription)")
+            Log.error("navigation failed: \(error.localizedDescription)")
         }
-        
+
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-            print("❌ Provisional navigation failed: \(error.localizedDescription)")
+            Log.error("page load failed: \(error.localizedDescription)")
+            bridge.onEvent?(.loadFailed(error.localizedDescription))
         }
-        
+
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-            print("⚠️ WebContent process terminated, reloading...")
+            Log.error("web content process terminated, reloading")
             webView.reload()
         }
     }

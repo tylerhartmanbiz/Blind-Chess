@@ -79,7 +79,7 @@ final class VoiceE2EUITests: XCTestCase {
             AppLab.screenshot(String(format: "voice_%02d_after_%@", n + 1,
                                      phrase.replacingOccurrences(of: " ", with: "_")), in: self)
             let played = doneAt != nil
-            let idle: Set<String> = ["Listening...", "Tap to speak", ""]
+            let idle: Set<String> = ["Listening...", "Listening…", "Tap to speak", "Tap the microphone and say a move", ""]
             let fresh = seen.filter { !idle.contains($0) && !previous.contains($0) }
             XCTAssertTrue(played, "host never played phrase \(n)")
             XCTAssertFalse(fresh.isEmpty, "no new transcript/status text after phrase \(n) '\(phrase)'")

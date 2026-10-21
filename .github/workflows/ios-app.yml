@@ -8,6 +8,9 @@ on:
   push:
     paths:
       - "Blind Chess.xcodeproj/**"
+      - "Blind Chess/**"
+      - "Chess/*.swift"
+      - "Speech/*.swift"
       - "Blind ChessUITests/**"
       - "Tools/AppLab/**"
       - ".github/workflows/ios-app.yml"
@@ -15,7 +18,7 @@ on:
     inputs:
       phrases:
         description: 'Voice phrases, separated by "|"'
-        default: "pawn to e4|knight to f3|h8"
+        default: "pawn to e4|knight to f3|d3|knight to d2|b1|h8|where is my queen"
       run_voice:
         description: "Run the voice E2E test"
         type: boolean
@@ -36,7 +39,7 @@ jobs:
       BUNDLE_ID: Blind-Chess.Blind-Chess
       OUT: ${{ github.workspace }}/lab-out
       DD: ${{ github.workspace }}/DerivedData
-      PHRASES: ${{ github.event.inputs.phrases || 'pawn to e4|knight to f3|h8' }}
+      PHRASES: ${{ github.event.inputs.phrases || 'pawn to e4|knight to f3|d3|knight to d2|b1|h8|where is my queen' }}
       RUN_VOICE: ${{ github.event.inputs.run_voice || 'true' }}
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
