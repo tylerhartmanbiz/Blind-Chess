@@ -8,6 +8,7 @@
 //  and announces what happens. Voice and button modes share everything here.
 //
 
+import Combine
 import SwiftUI
 
 @MainActor
@@ -236,7 +237,7 @@ final class GameController: ObservableObject {
             if case .command(let command) = resolution { perform(command) } else { tell("Say yes to resign, or no to keep playing.", .question) }
         case .newGame:
             let words = transcripts.joined(separator: " ").lowercased()
-            if let color = ["white", "black", "random"].first(where: words.contains) {
+            if let color = ["white", "black", "random"].first(where: { words.contains($0) }) {
                 startNewGame(color: color)
             } else if case .command(let command) = resolution {
                 perform(command)

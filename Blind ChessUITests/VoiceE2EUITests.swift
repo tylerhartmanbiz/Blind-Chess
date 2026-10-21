@@ -27,6 +27,7 @@ final class VoiceE2EUITests: XCTestCase {
         app.launch()
         AppLab.dismissSystemAlerts(timeout: 6)
         Thread.sleep(forTimeInterval: 3)
+        waitForGame(app)
 
         // Make sure we are in voice mode: the mic button exists only there.
         var mic = AppLab.find(app, ids: ["micButton"], labelKeywords: ["speak", "listening", "microphone"])
@@ -93,5 +94,26 @@ final class VoiceE2EUITests: XCTestCase {
         AppLab.write(summary.joined(separator: "\n"), to: "voice/summary.txt")
         AppLab.write("finished", to: "voice/finished")
         AppLab.log("voice test finished, dir=\(dir)")
+    }
+
+    /// Waits (up to 90 s) until chess.com has a game running and it is the user's move, so the first phrase
+    /// is not spent on the setup screen.
+    @MainActor
+    private func waitForGame(_ app: XCUIApplication) {
+        let status = app.staticTexts.matching(identifier: "statusText").firstMatch
+        let start = Date()
+        var last = ""
+        while Date().timeIntervalSince(start) < 90 {
+            let label = status.exists ? status.label : ""
+            if label != last {
+                AppLab.log("status: \(label)")
+                last = label
+            }
+            if label.hasPrefix("Your move") { break }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        AppLab.log("game ready after \(Int(Date().timeIntervalSince(start))) s: \(last)")
+        // Let the "game started" announcement finish before the first phrase.
+        Thread.sleep(forTimeInterval: 4)
     }
 }

@@ -63,7 +63,7 @@ jobs:
             -project "Blind Chess.xcodeproj" -scheme "Blind Chess" -configuration Debug \
             -destination "generic/platform=iOS Simulator" -derivedDataPath "$DD" \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$OUT/build.log" | grep -E "error:|warning: .*(deprecated|Audio)|BUILD|TEST BUILD" || true
-          grep -q "TEST BUILD SUCCEEDED\|BUILD SUCCEEDED" "$OUT/build.log" || { tail -80 "$OUT/build.log"; exit 1; }
+          grep -q "TEST BUILD SUCCEEDED\|BUILD SUCCEEDED" "$OUT/build.log" || { tail -30 "$OUT/build.log"; echo "--- errors:"; grep -E "error:" "$OUT/build.log" | sed 's|.*Blind-Chess/Blind-Chess/||' | sort -u | head -60; exit 1; }
           find "$DD/Build/Products" -maxdepth 2 \( -name "*.app" -o -name "*.xctestrun" \) | tee "$OUT/products.txt"
 
       - name: Audio loopback (BlackHole) + host check

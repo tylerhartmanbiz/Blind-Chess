@@ -38,6 +38,13 @@ To write a new scenario, copy `VoiceE2EUITests`, set `APPLAB_PHRASES`, and asser
 
 UI lookups prefer accessibility identifiers `micButton`, `inputModeToggle`, `boardVisibilityToggle`
 (falling back to label keywords "speak"/"listening", "mode", "board"), so the app should keep those.
+The app also exposes `statusText` (whose turn / result), `feedbackText` (last message), `transcriptText`,
+`userLastMove`, `opponentLastMove`, `promptQuestion`, `choice-<id>` (answers: a move's UCI, `yes`, `no`,
+`white`/`black`/`random`), `promptCancel`, `playMoveButton`, `speechToggle`, `gameMenu`, `quick*` buttons and
+`permissionMessage`/`openSettingsButton`. The mic's idle label never contains "listening".
+`VoiceE2EUITests` waits for `statusText` to read "Your move" before the first phrase. The app logs key events
+(`heard:`, `resolution:`, `move <uci>:`, `say:`, `opponent:`) to os.Logger and, under `BLINDCHESS_LOG_FILE`,
+to stdout with a `[BlindChess]` prefix.
 
 See the bottom of this file for findings from actual runs.
 
