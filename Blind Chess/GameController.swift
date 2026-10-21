@@ -365,7 +365,7 @@ final class GameController: ObservableObject {
             result = nil
             prompt = nil
         case .takeback(let fen):
-            guard let position = fen.flatMap { Position(fen: $0) } else { return }
+            guard let fen, let position = Position(fen: fen) else { return }
             self.position = position
             lastUserMove = nil
             lastOpponentMove = nil
