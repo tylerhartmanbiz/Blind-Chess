@@ -7,7 +7,7 @@
 //
 //  Handshake with Tools/AppLab/voice_driver.sh through files in $APPLAB_DIR/voice:
 //    test writes  req-<n>.txt   (the phrase)        -> host speaks it
-//    host writes  done-<n>      when playback ended -> test samples the UI
+//    host writes  done-<n>      when playback ended -> test samples the UI for APPLAB_SETTLE s (default 7)
 //    test writes  result-<n>.txt (every distinct native UI text seen while waiting)
 //    test writes  finished      at the end
 //
@@ -62,7 +62,9 @@ final class VoiceE2EUITests: XCTestCase {
             var seen: [String] = []
             var doneAt: Date?
             let start = Date()
-            // Sample until 5 s after the host reports playback done (max 60 s).
+            // Sample until `settle` s after the host reports playback done (max 60 s). The default
+            // (7 s) outlasts the app's 5 s silence reset so phrases don't merge into one transcript.
+            let settle = Double(AppLab.env["APPLAB_SETTLE"] ?? "") ?? 7
             while Date().timeIntervalSince(start) < 60 {
                 for t in AppLab.nativeTexts(app) where t.type == .staticText {
                     if !seen.contains(t.label) {
@@ -71,7 +73,7 @@ final class VoiceE2EUITests: XCTestCase {
                     }
                 }
                 if doneAt == nil, AppLab.fileExists("voice/done-\(n)") { doneAt = Date() }
-                if let d = doneAt, Date().timeIntervalSince(d) > 5 { break }
+                if let d = doneAt, Date().timeIntervalSince(d) > settle { break }
                 Thread.sleep(forTimeInterval: 0.4)
             }
             AppLab.screenshot(String(format: "voice_%02d_after_%@", n + 1,

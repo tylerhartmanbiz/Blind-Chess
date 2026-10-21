@@ -87,7 +87,7 @@ jobs:
       - name: Launch via simctl, record video, screenshots, logs
         run: |
           xcrun simctl spawn "$UDID" log stream --level debug --style compact \
-            --predicate 'process == "Blind Chess" OR process CONTAINS[c] "speechrecognition" OR (process == "assistantd" AND messageType >= 16)' \
+            --predicate '(process == "Blind Chess" AND NOT subsystem BEGINSWITH "com.apple.dt.xctest" AND NOT subsystem == "com.apple.Accessibility") OR process CONTAINS[c] "speechrecognition" OR (process == "assistantd" AND messageType >= 16)' \
             > "$OUT/sim_log_stream.txt" 2>&1 &
           echo $! > "$OUT/logstream.pid"
           xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/launch.mp4" > "$OUT/record1.log" 2>&1 &

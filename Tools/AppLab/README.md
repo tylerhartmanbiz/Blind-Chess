@@ -41,6 +41,26 @@ UI lookups prefer accessibility identifiers `micButton`, `inputModeToggle`, `boa
 
 See the bottom of this file for findings from actual runs.
 
-## Findings
+## Findings (GitHub-hosted runs 39545563001, 39546667438, 39548048665)
 
-(filled in from CI runs)
+- Runner `macos-26` (arm64 VM, macOS 26 build 25G83), Xcode 26.6 (17F113), simulator iPhone 17 / iOS 26.5.
+  The deployment target 26.5 is fine there, so it was not lowered. Job time is about 10-14 min: the first boot of
+  the simulator (data migration) alone takes about 3 min.
+- The build works with `CODE_SIGNING_ALLOWED=NO` after the dangling `Audio` synchronized group was removed.
+- The VM already has "Apple Virtual Sound Device" plus "Null Audio Device". `brew install --cask blackhole-2ch`
+  works without a reboot: `killall coreaudiod` is enough, though brew says a reboot is needed.
+  `mic_level.swift` hears the loopback at about -13 dBFS (SIGNAL).
+- Simulator microphone = host default input, so **real voice E2E works**. SFSpeechRecognizer in the simulator
+  transcribed TTS audio as "Upon to E4" (pawn to e4), "Night to F3" (knight to f3) and "H8".
+  The voice test sees no permission alerts, because both permissions are pre-granted:
+  `simctl privacy grant microphone`, and a copied TCC row for `kTCCServiceSpeechRecognition`. The app logs
+  "Speech recognition authorized".
+- Pitfall: if the app's recognizer gets about 20 s of silence it fails with "Recognition error: Retry" and the
+  current app never restarts it. For this reason phrases are pre-rendered and played within about 1 s of each request.
+- Pitfall: phrases closer together than the app's 5 s silence reset merge into one transcript
+  ("Upon to E4 9 to F3H8"). That is why `APPLAB_SETTLE` defaults to 7 s.
+- chess.com loads in the simulator's WKWebView. There was no Cloudflare or bot challenge in 3 of 3 runs. The page
+  shows the "Play the bots" setup dialog (Start button), so no game is running unless the bridge starts one.
+  The app still printed "Moved to E4 / JS OK: Moving 52 to 54" while the dialog was up.
+- Artifacts are on blob storage, which some agent sandboxes cannot reach. In that case read the job log
+  (screenshots are printed by `print_screens.sh`) and decode it with `extract_screens.py`.

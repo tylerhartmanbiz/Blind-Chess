@@ -4,7 +4,7 @@
 # Decode with: python3 Tools/AppLab/extract_screens.py <job log> <out dir>
 # Usage: print_screens.sh <lab-out dir> [max width px]   (SCREENS="glob ..." to choose)
 set -uo pipefail
-out="$1"; width="${2:-300}"
+out="$1"; width="${2:-400}"
 tmp="$(mktemp -d)"
 shopt -s nullglob
 files=( ${SCREENS:-"$out"/screens/simctl_35s.png "$out"/lab/screens/smoke_03_web_32s.png "$out"/lab/screens/toggle_02_input_mode_switched.png "$out"/lab/screens/toggle_03_board_toggled.png "$out"/lab/screens/voice_*.png} )
