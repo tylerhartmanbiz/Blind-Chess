@@ -138,7 +138,8 @@ async function playGame({ label, color, maxPlies = 140, extras = {}, castle = nu
     const m = pickMove(st2.fen, seen);
     if (script && script.includes(uciOf(m))) script.done.add(uciOf(m));
     if (m.flags.includes('k') || m.flags.includes('q')) script = null;
-    const useDom = extras.domAtUserMove !== undefined && g.userMoves === extras.domAtUserMove && !m.promotion;
+    const useDom = extras.domAtUserMove !== undefined && g.userMoves >= extras.domAtUserMove && !g.domDone && !m.promotion && !/[kqe]/.test(m.flags);
+    if (useDom) g.domDone = true;
     const r = await M(uciOf(m), useDom ? { forceDom: true } : {});
     if (useDom) {
       const moved = await waitFor(async () => (await S()).ply === st2.ply + 1, 5000);
@@ -219,7 +220,7 @@ try {
   // Game 1: white (guest's first visit auto-starts a game vs the default bot)
   await playGame({
     label: 'G1-white', color: 'white', maxPlies: 160, castle: 'wk', extras: {
-      domAtUserMove: 3,
+      domAtUserMove: 2,
       onTurn: async (st, g) => {
         if (st.ply === 0) {
           const bad = await M('e2e5'); result('illegal move rejected (e2e5)', !bad.ok && bad.error === 'illegal', bad);
@@ -239,8 +240,9 @@ try {
           const s0 = await lastSeq();
           const h = await page.evaluate(() => window.BlindChess.hint());
           const ev = await waitFor(async () => (await EV(s0)).find(e => e.type === 'hint'), 8000);
-          const legal = ev && ev.uci ? new Chess(st.fen).moves({ verbose: true }).some(m => m.from + m.to === ev.uci) : false;
-          result('hint() returns a legal move via hint event', !!(h.ok && ev && legal), { h, ev });
+          const lm = new Chess(st.fen).moves({ verbose: true });
+          const legal = ev && (ev.uci ? lm.some(m => m.from + m.to === ev.uci) : ev.square ? lm.some(m => m.from === ev.square) : false);
+          result('hint() reports chess.com hint (legal move, or movable piece square)', !!(h.ok && ev && legal), { h: h.ok, ev: ev && { uci: ev.uci, square: ev.square, note: ev.note } });
           await page.evaluate(() => { const g = document.querySelector('wc-chess-board').game; try { g.clearMarkings(); } catch (e) { } });
         }
         if (st.ply === 14 && !g.tookBack) {

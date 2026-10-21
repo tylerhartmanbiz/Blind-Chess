@@ -420,14 +420,39 @@
     var st = buildState();
     var steps = [];
     if (st.phase === 'over') {
-      var re = opts.rematch ? /^rematch$/i : /^new bot$/i;
-      var b = findButton(re, { textOnly: true });
-      if (!b) return { ok: false, error: 'no-' + (opts.rematch ? 'rematch' : 'new-bot') + '-button' };
-      b.click(); steps.push(opts.rematch ? 'rematch' : 'new-bot');
-      if (opts.rematch) return { ok: true, pending: true, steps: steps };
-    } else if (st.phase === 'playing' && st.ply > 0 && !opts.force) {
-      return { ok: false, error: 'game-in-progress' };
+      // The game-over modal ("New Bot" / "Rematch") renders a moment after the game ends: wait for it.
+      var re = opts.rematch ? /^rematch$/i : /^(new bot|new game)$/i;
+      var waited = 0;
+      (function leave() {
+        var b = findButton(re, { textOnly: true });
+        if (!b) {
+          if ((waited += 150) < 8000) return setTimeout(leave, 150);
+          post({ type: 'setupFailed', error: 'no-' + (opts.rematch ? 'rematch' : 'new-bot') + '-button' });
+          return;
+        }
+        b.click();
+        if (!opts.rematch) runSetup(opts);
+      })();
+      return { ok: true, pending: true, steps: [opts.rematch ? 'rematch' : 'new-bot'] };
+    } else if (st.phase === 'playing') {
+      var want = opts.color && /^(w|b)/i.test(opts.color) ? opts.color.charAt(0).toLowerCase() : null;
+      if (st.ply === 0 && (!want || want === st.playingAs)) return { ok: true, already: true };
+      if (st.ply > 0 && !opts.force) return { ok: false, error: 'game-in-progress' };
+      // auto-started game on the wrong side (or force): resign it, then go through New Bot.
+      var r = resign();
+      if (!r.ok) return r;
+      var t0 = now();
+      (function afterResign() {
+        if (buildState().phase === 'over') return startNewGame(opts);
+        if (now() - t0 < 8000) return setTimeout(afterResign, 150);
+        post({ type: 'setupFailed', error: 'resign-did-not-end-game' });
+      })();
+      return { ok: true, pending: true, steps: ['resign'] };
     }
+    runSetup(opts);
+    return { ok: true, pending: true, steps: steps };
+  }
+  function runSetup(opts) {
     var tries = 0;
     (function setup() {
       if (!setupVisible()) { if (++tries < 40) return setTimeout(setup, 150); post({ type: 'setupFailed', error: 'no-setup-screen' }); return; }
@@ -443,7 +468,6 @@
         post({ type: 'setupDone', color: opts.color || null });
       }, 300);
     })();
-    return { ok: true, pending: true, steps: steps };
   }
   function pickColor(color) {
     // Setup screen: .play-as-selector-component > .play-side-selector-option x3 (white, random, black),
