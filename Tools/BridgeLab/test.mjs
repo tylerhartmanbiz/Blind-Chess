@@ -45,9 +45,13 @@ async function waitFor(fn, ms = 30000, step = 200) { const end = Date.now() + ms
 // ------------------------------------------------------------- move policy
 const VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 function uciOf(m) { return m.from + m.to + (m.promotion || ''); }
+const SCRIPTS = { wk: ['g1f3', 'e2e3', 'f1e2', 'e1g1'], wq: ['d2d4', 'b1c3', 'c1f4', 'd1d2', 'e1c1'], bk: ['g8f6', 'e7e6', 'f8e7', 'e8g8'], bq: ['d7d5', 'b8c6', 'c8f5', 'd8d7', 'e8c8'] };
+let script = null;
 function pickMove(fen, seenFens) {
   const c = new Chess(fen);
   const moves = c.moves({ verbose: true });
+  const legalU = moves.map(uciOf);
+  const scripted = script ? script.find(u => legalU.includes(u) && !script.done.has(u)) : null;
   let best = null, bestScore = -1e9;
   for (const m of moves) {
     let s = 0;
@@ -59,6 +63,7 @@ function pickMove(fen, seenFens) {
       if (m.promotion === want) s += 12;
     }
     if (m.flags.includes('e')) s += 20;
+    if (scripted && uciOf(m) === scripted) s += 25;
     if (m.flags.includes('k') && !coverage.castleK) s += 15;
     if (m.flags.includes('q') && !coverage.castleQ) s += 15;
     if (m.flags.includes('k') || m.flags.includes('q')) s += 1;
@@ -77,6 +82,7 @@ function pickMove(fen, seenFens) {
     }
     c.undo();
     s -= worst;
+    if (scripted && uciOf(m) === scripted && worst > (m.captured ? VAL[m.captured] : 0)) s -= 25;
     s += Math.random() * 0.05;
     if (s > bestScore) { bestScore = s; best = m; }
   }
@@ -98,7 +104,8 @@ async function ensureGame(color, label) {
   return ok || await S();
 }
 
-async function playGame({ label, color, maxPlies = 140, extras = {} }) {
+async function playGame({ label, color, maxPlies = 140, extras = {}, castle = null }) {
+  script = castle ? Object.assign(SCRIPTS[castle].slice(), { done: new Set() }) : null;
   const st0 = await ensureGame(color, label);
   const seq0 = await lastSeq();
   const g = { label, color: st0.playingAs, startPhase: st0.phase, userMoves: 0, oppWaitTimeouts: 0, errors: [], result: null };
@@ -129,6 +136,8 @@ async function playGame({ label, color, maxPlies = 140, extras = {} }) {
     const st2 = await S();
     if (st2.phase !== 'playing' || st2.turn !== st2.playingAs) continue;
     const m = pickMove(st2.fen, seen);
+    if (script && script.includes(uciOf(m))) script.done.add(uciOf(m));
+    if (m.flags.includes('k') || m.flags.includes('q')) script = null;
     const useDom = extras.domAtUserMove !== undefined && g.userMoves === extras.domAtUserMove && !m.promotion;
     const r = await M(uciOf(m), useDom ? { forceDom: true } : {});
     if (useDom) {
@@ -159,17 +168,20 @@ async function playGame({ label, color, maxPlies = 140, extras = {} }) {
   const evs = (await EV(seq0));
   const moveEvs = evs.filter(e => e.type === 'move');
   const plies = fin.ply;
-  const counts = {};
-  moveEvs.forEach(e => { counts[e.ply] = (counts[e.ply] || 0) + 1; });
-  const dup = Object.entries(counts).filter(([, n]) => n > 1).map(([p]) => p);
-  const startPly = st0.ply;
-  const missing = []; for (let p = startPly + 1; p <= plies; p++) if (!counts[p]) missing.push(p);
+  // Replay the event stream: each 'move' must be exactly the next ply; 'takeback' truncates.
+  const seqList = st0.sanHistory.slice(); const seqErr = [];
+  for (const e of evs) {
+    if (e.type === 'move') { if (e.ply !== seqList.length + 1) seqErr.push(`ply ${e.ply} after ${seqList.length}`); seqList.length = e.ply - 1; seqList.push(e.san); }
+    else if (e.type === 'takeback') seqList.length = e.ply;
+    else if (e.type === 'newGame') seqList.length = 0;
+  }
   const opp = moveEvs.filter(e => e.by === 'opponent');
   const wrongBy = moveEvs.filter(e => (e.color === fin.playingAs) !== (e.by === 'user'));
   coverage.checksReceived += opp.filter(e => e.check).length;
-  const sanMatch = moveEvs.every(e => fin.sanHistory[e.ply - 1] === e.san);
-  g.plies = plies; g.oppEvents = opp.length; g.dupPlies = dup; g.missingPlies = missing; g.gameOverEvents = evs.filter(e => e.type === 'gameOver').length;
-  result(`${label}: move events exactly once per ply (${moveEvs.length} events, ${plies} plies)`, dup.length === 0 && missing.length === 0 && sanMatch && wrongBy.length === 0, { dup, missing: missing.slice(0, 5), sanMatch, wrongBy: wrongBy.length });
+  const sanMatch = JSON.stringify(seqList) === JSON.stringify(fin.sanHistory);
+  const takebacks = evs.filter(e => e.type === 'takeback').length;
+  g.plies = plies; g.oppEvents = opp.length; g.gameOverEvents = evs.filter(e => e.type === 'gameOver').length;
+  result(`${label}: move events exactly once per ply (${moveEvs.length} events, ${plies} plies, ${takebacks} takeback evts)`, seqErr.length === 0 && sanMatch && wrongBy.length === 0, { seqErr: seqErr.slice(0, 3), sanMatch, wrongBy: wrongBy.length });
   // DOM move list vs bridge history
   const domSans = await page.evaluate(() => [...document.querySelectorAll('wc-simple-move-list .node, .move-list .node')].map(n => (n.querySelector('.node-highlight-content') || n).innerText.replace(/\s+/g, '').trim()).filter(Boolean));
   const domOk = domSans.length === 0 || JSON.stringify(domSans.map(s => s.replace(/[!?]+$/, ''))) === JSON.stringify(fin.sanHistory);
@@ -206,7 +218,7 @@ try {
 
   // Game 1: white (guest's first visit auto-starts a game vs the default bot)
   await playGame({
-    label: 'G1-white', color: 'white', maxPlies: 160, extras: {
+    label: 'G1-white', color: 'white', maxPlies: 160, castle: 'wk', extras: {
       domAtUserMove: 3,
       onTurn: async (st, g) => {
         if (st.ply === 0) {
@@ -245,7 +257,7 @@ try {
   });
 
   // Game 2: black via startNewGame (game-over modal -> New Bot -> colour -> Play)
-  await playGame({ label: 'G2-black', color: 'black', maxPlies: 160 });
+  await playGame({ label: 'G2-black', color: 'black', maxPlies: 160, castle: 'bq' });
 
   // Game 3: white, then reload mid-game
   const g3 = await playGame({ label: 'G3-white-reload', color: 'white', maxPlies: 12 });
@@ -256,8 +268,21 @@ try {
   const ar = await S();
   result('page reload mid-game: bridge re-installs and reports a coherent state', !!(afterReload && ar.ok && (ar.phase === 'setup' || ar.phase === 'playing')),
     { before: { phase: before.phase, ply: before.ply }, after: { phase: ar.phase, ply: ar.ply, playingAs: ar.playingAs } });
-  log('NOTE reload: chess.com restored game? ', ar.ply === before.ply && ar.phase === 'playing');
-
+  log('NOTE reload: game still live right after reload?', ar.ply === before.ply && ar.phase === 'playing');
+  if (ar.phase === 'setup') {
+    // chess.com keeps the guest's unfinished game locally: pressing Play with the same colour resumes it?
+    await page.evaluate(() => window.BlindChess.startNewGame({ color: 'white' }));
+    const res = await waitFor(async () => { const s = await S(); return s.phase === 'playing' ? s : null; }, 15000);
+    await sleep(2000);
+    const r2 = await S();
+    log('NOTE reload+Play(same colour):', JSON.stringify({ phase: r2.phase, ply: r2.ply, playingAs: r2.playingAs, sameHistory: JSON.stringify(r2.sanHistory.slice(0, before.ply)) === JSON.stringify(before.sanHistory) }));
+    result('after reload, startNewGame({color}) gets back to a playable game', !!res, { ply: r2.ply, playingAs: r2.playingAs });
+    if (r2.phase === 'playing' && r2.turn === r2.playingAs) {
+      const m = pickMove(r2.fen, new Set());
+      const mv = await M(uciOf(m));
+      result('move after reload works', mv.ok, mv);
+    }
+  }
   // Game 4: black from the setup screen, then resign after a few moves
   await playGame({
     label: 'G4-black-resign', color: 'black', maxPlies: 200, extras: {

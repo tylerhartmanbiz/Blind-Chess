@@ -19,7 +19,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, profile: webkit-iphone }
+          - { os: ubuntu-latest, profile: webkit-iphone, headed: '0' }
+          - { os: macos-latest, profile: webkit-iphone, headed: '0' }
+          - { os: ubuntu-latest, profile: chromium-iphone, headed: '1' }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     steps:
@@ -33,6 +35,8 @@ jobs:
           npx playwright install --with-deps ${{ startsWith(matrix.profile, 'webkit') && 'webkit' || 'chromium' }}
       - name: Run
         working-directory: Tools/BridgeLab
+        env:
+          HEADED: ${{ matrix.headed }}
         run: |
           MODE=$(cat MODE 2>/dev/null || echo test)
           [ -n "${{ github.event.inputs.mode }}" ] && MODE="${{ github.event.inputs.mode }}"
@@ -42,6 +46,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: lab-${{ matrix.os }}-${{ matrix.profile }}
+          name: lab-${{ matrix.os }}-${{ matrix.profile }}-${{ matrix.headed }}
           path: Tools/BridgeLab/out-*
           retention-days: 7

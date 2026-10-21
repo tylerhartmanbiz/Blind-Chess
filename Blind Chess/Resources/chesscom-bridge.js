@@ -165,7 +165,7 @@
     if (g !== T.game) {
       bind(g);
       if (T.plies >= 0) post({ type: 'boardChanged', why: why });
-      T.plies = -1; T.overSent = false; T.pa = null;
+      T.plies = -1; T.overSent = false; T.pa = null; T.overSince = 0;
     }
     var st = buildState();
     if (!g) { emitStateIfChanged(st); return; }
@@ -196,14 +196,16 @@
     }
     T.plies = n; T.lastFen = st.fen;
     if (st.gameOver && !T.overSent) {
-      T.overSent = true;
       var go = st.gameOver;
+      // isGameOver() flips (ModeChanged) slightly before chess.com reports *why* (GameResigned event /
+      // modal subtitle). Hold the event up to ~2.5 s for a known reason, then send what we have.
+      if (go.reason === 'unknown' && T.resignRequested) go.reason = 'resignation';
+      if (go.reason === 'unknown') {
+        if (!T.overSince) T.overSince = now();
+        if (now() - T.overSince < 2500) { emitStateIfChanged(st); return; }
+      }
+      T.overSent = true; T.overSince = 0; T.resignRequested = false;
       post({ type: 'gameOver', result: go.result, reason: go.reason, winner: go.winner, userWon: go.userWon, fen: st.fen, sanHistory: st.sanHistory });
-      // the modal subtitle (reason) may render a moment later: send an update if it improves
-      if (go.reason === 'unknown' || go.reason === 'draw') setTimeout(function () {
-        var s2 = buildState();
-        if (s2.gameOver && s2.gameOver.reason !== go.reason) post({ type: 'gameOverReason', reason: s2.gameOver.reason, result: s2.gameOver.result });
-      }, 1500);
     }
     emitStateIfChanged(st);
   }
@@ -328,6 +330,7 @@
     if (st.phase !== 'playing') return { ok: false, error: 'not-playing', phase: st.phase };
     var b = findButton(/^resign$/i);
     if (!b) return { ok: false, error: 'no-resign-button' };
+    T.resignRequested = true;
     b.click();
     // confirmation ("Are you sure you want to resign?  Cancel | Resign")
     var tries = 0;
@@ -350,26 +353,52 @@
   function hint() {
     var st = buildState();
     if (st.phase !== 'playing') return { ok: false, error: 'not-playing', phase: st.phase };
+    if (st.turn !== st.playingAs) return { ok: false, error: 'not-your-turn' };
     var b = findButton(/^(show )?hint$/i);
     if (!b) return { ok: false, error: 'no-hint-button' };
     var g = gameApi();
-    var seen = {};
-    var arrows0 = safe(function () { return g.getMarkings().arrow; }, {}) || {};
-    Object.keys(arrows0).forEach(function (k) { seen[k] = 1; });
+    var marks = [];
+    var onMark = function (e) {
+      if (!e || (e.type !== 'Mark' && e.type !== 'Arrow' && !/hint/i.test(e.type))) return;
+      try { marks.push(JSON.parse(JSON.stringify(e.data))); } catch (x) {}
+    };
+    try { g.on('all', onMark); } catch (x) {}
+    var done = false;
+    function finish(ev) {
+      if (done) return; done = true;
+      try { g.off('all', onMark); } catch (x) {}
+      post(ev);
+    }
+    function fromMarks(list) {
+      // Arrow-style marking (from/to) wins; a single highlighted square means "move this piece".
+      var sq = null;
+      for (var i = 0; i < list.length; i++) {
+        var m = list[i]; if (!m) continue;
+        var d = m.data || m;
+        var from = d.from || (d.arrow && d.arrow.from), to = d.to || (d.arrow && d.arrow.to);
+        var key = String(m.key || d.key || '');
+        var km = /([a-h][1-8])([a-h][1-8])/.exec(key);
+        if (!from && km && (m.type === 'arrow' || m.markingType === 'arrow')) { from = km[1]; to = km[2]; }
+        if (from && to) return { from: from, to: to };
+        if (!sq && d.square && /hint/i.test(JSON.stringify(m))) sq = d.square;
+      }
+      return sq ? { square: sq } : null;
+    }
     b.click();
     var tries = 0;
     (function poll() {
-      var arrows = safe(function () { return g.getMarkings().arrow; }, {}) || {};
-      var keys = Object.keys(arrows).filter(function (k) { return !seen[k]; });
-      if (!keys.length) keys = Object.keys(arrows);
-      for (var i = 0; i < keys.length; i++) {
-        var a = arrows[keys[i]];
-        var from = a && (a.from || (a.data && a.data.from)), to = a && (a.to || (a.data && a.data.to));
-        if (!from && /^[a-h][1-8][a-h][1-8]$/.test(keys[i])) { from = keys[i].slice(0, 2); to = keys[i].slice(2, 4); }
-        if (from && to) { post({ type: 'hint', uci: from + to, from: from, to: to }); return; }
+      if (done) return;
+      var flat = marks.reduce(function (a, x) { return a.concat(Array.isArray(x) ? x : [x]); }, []);
+      var mk = safe(function () { return g.getMarkings(); }, {}) || {};
+      ['arrow', 'square', 'effect', 'customItem'].forEach(function (t) { var o = mk[t] || {}; Object.keys(o).forEach(function (k) { var v = o[k]; flat.push({ type: t, key: k, data: v, markingType: v && v.markingType }); }); });
+      var r = fromMarks(flat);
+      if (r && r.from) {
+        var legal = (safe(function () { return g.getLegalMoves(); }, []) || []).some(function (x) { return x.from === r.from && x.to === r.to; });
+        if (legal) return finish({ type: 'hint', uci: r.from + r.to, from: r.from, to: r.to });
       }
-      if (++tries < 40) setTimeout(poll, 100);
-      else post({ type: 'hint', uci: null, error: 'no-arrow' });
+      if (++tries < 40) return setTimeout(poll, 100);
+      if (r && r.square) return finish({ type: 'hint', uci: null, square: r.square, note: 'piece-highlight-only' });
+      finish({ type: 'hint', uci: null, error: 'no-hint-marking', raw: JSON.stringify(flat).slice(0, 600) });
     })();
     return { ok: true, pending: true };
   }
