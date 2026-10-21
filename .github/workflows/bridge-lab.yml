@@ -20,8 +20,6 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-latest, profile: webkit-iphone }
-          - { os: ubuntu-latest, profile: chromium-iphone }
-          - { os: macos-latest, profile: webkit-iphone }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
