@@ -54,6 +54,7 @@ final class VoiceE2EUITests: XCTestCase {
         AppLab.write(AppLab.describe(AppLab.nativeTexts(app)), to: "voice/listening_native_ui.txt")
 
         var summary: [String] = []
+        var previous = Set<String>()
         for (i, phrase) in AppLab.phrases.enumerated() {
             let n = i + 1
             AppLab.write(phrase, to: "voice/req-\(n).txt")
@@ -76,6 +77,11 @@ final class VoiceE2EUITests: XCTestCase {
             AppLab.screenshot(String(format: "voice_%02d_after_%@", n + 1,
                                      phrase.replacingOccurrences(of: " ", with: "_")), in: self)
             let played = doneAt != nil
+            let idle: Set<String> = ["Listening...", "Tap to speak", ""]
+            let fresh = seen.filter { !idle.contains($0) && !previous.contains($0) }
+            XCTAssertTrue(played, "host never played phrase \(n)")
+            XCTAssertFalse(fresh.isEmpty, "no new transcript/status text after phrase \(n) '\(phrase)'")
+            previous = Set(seen)
             let result = "phrase: \(phrase)\nhost_played: \(played)\nui_texts_seen:\n" +
                 seen.map { "  - \($0)" }.joined(separator: "\n") + "\n"
             AppLab.write(result, to: "voice/result-\(n).txt")

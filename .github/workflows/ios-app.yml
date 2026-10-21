@@ -108,7 +108,7 @@ jobs:
           ONLY="-only-testing:Blind ChessUITests/SmokeUITests"
           if [[ "$RUN_VOICE" == "true" ]]; then
             ONLY="-only-testing:Blind ChessUITests"
-            Tools/AppLab/voice_driver.sh "$OUT/lab" 900 > "$OUT/voice_driver.log" 2>&1 &
+            APPLAB_PHRASES="$PHRASES" CACHE_DIR="$OUT/tts" Tools/AppLab/voice_driver.sh "$OUT/lab" 900 > "$OUT/voice_driver.log" 2>&1 &
           fi
           xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/uitests.mp4" > "$OUT/record2.log" 2>&1 &
           REC=$!
@@ -126,6 +126,7 @@ jobs:
           echo "--- chess.com web texts:"; head -40 "$OUT/lab/chesscom_web_texts.txt" 2>/dev/null || true
           echo "speech auth (app stdout): $(grep -h -m1 'Speech recognition' "$OUT"/app_stdout_*.log "$OUT"/lab/app_stdout_uitest.log 2>/dev/null | head -1)" | tee -a "$OUT/summary.txt"
           echo "UITEST_RC=$RC" | tee -a "$OUT/summary.txt"
+          exit $RC
 
       - name: Summary
         if: always()
