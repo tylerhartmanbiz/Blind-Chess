@@ -33,7 +33,7 @@ cat /tmp/lab/voice/summary.txt                          # what the app showed fo
 ```
 
 Handshake: the test writes `voice/req-N.txt` -> host speaks it -> host writes `voice/done-N` -> test samples
-the native UI (snapshot, web view excluded) for 5 more seconds -> `voice/result-N.txt` + screenshot.
+the native UI (snapshot, web view excluded) for APPLAB_SETTLE (default 7) more seconds -> `voice/result-N.txt` + screenshot.
 To write a new scenario, copy `VoiceE2EUITests`, set `APPLAB_PHRASES`, and assert on the texts you expect.
 
 UI lookups prefer accessibility identifiers `micButton`, `inputModeToggle`, `boardVisibilityToggle`
