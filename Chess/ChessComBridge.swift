@@ -109,6 +109,10 @@ final class ChessComBridge {
         onEvent?(event)
     }
 
+    func reload() {
+        webView?.load(URLRequest(url: ChessWebView.url))
+    }
+
     func move(_ uci: String) async -> BridgeMoveResult {
         let reply = await call("return window.BlindChess ? BlindChess.move(uci) : {ok: false, error: 'no-bridge'}",
                                ["uci": uci])

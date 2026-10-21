@@ -184,7 +184,7 @@ final class GameController: ObservableObject {
     func reload() {
         loadError = nil
         phase = nil
-        bridge.webView?.load(URLRequest(url: ChessWebView.url))
+        bridge.reload()
     }
 
     func scenePhaseChanged(_ scenePhase: ScenePhase) {
