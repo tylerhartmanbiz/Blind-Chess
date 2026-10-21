@@ -1,59 +1,44 @@
-// BridgeLab explorer (setup-flow edition): compact logs only.
-import { webkit, chromium, devices } from 'playwright';
-const profile = process.argv[2] || 'webkit-iphone';
-const log = (...a) => console.log(`[${profile}] ` + a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' '));
-const engine = profile.startsWith('webkit') ? webkit : chromium;
-const browser = await engine.launch({ headless: process.env.HEADED !== '1' });
+// BridgeLab explorer v4: setup screen (bot list, play-as selector, Play CTA). Compact logs only.
+import { webkit, devices } from 'playwright';
+const log = (...a) => console.log('[x] ' + a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' '));
+const browser = await webkit.launch({ headless: true });
 const ctx = await browser.newContext({ ...devices['iPhone 13'], locale: 'en-US' });
 const page = await ctx.newPage();
 await page.goto('https://www.chess.com/play/computer', { waitUntil: 'domcontentloaded', timeout: 60000 });
 await page.waitForTimeout(7000);
-
-const UI = () => {
-  const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-  const btns = [...document.querySelectorAll('button, [role=button], [role=radio], input[type=radio], label')].filter(vis)
-    .map(b => (b.innerText || b.getAttribute('aria-label') || b.getAttribute('data-cy') || '').trim().replace(/\s+/g, ' ').slice(0, 30) + (b.getAttribute('aria-pressed') || b.getAttribute('aria-checked') ? '[' + (b.getAttribute('aria-pressed') || b.getAttribute('aria-checked')) + ']' : '')).filter(Boolean);
-  const colorish = [...document.querySelectorAll('*')].filter(e => vis(e) && e.children.length < 4 && /(^|[\s-])(white|black|random)([\s-]|$)|color-select|select-color|play-as/i.test(String(e.className.baseVal ?? e.className) + ' ' + (e.getAttribute('aria-label') || '') + ' ' + (e.getAttribute('data-cy') || '')))
-    .slice(0, 12).map(e => e.tagName + '.' + String(e.className.baseVal ?? e.className).slice(0, 70) + ' aria=' + e.getAttribute('aria-label') + ' cy=' + e.getAttribute('data-cy'));
-  const modal = [...document.querySelectorAll('[class*=modal], [role=dialog]')].filter(vis).map(m => m.innerText.replace(/\s+/g, ' ').slice(0, 160))[0] || null;
-  const sb = document.querySelector('.board-layout-sidebar, #board-layout-sidebar');
-  const b = document.querySelector('wc-chess-board'); const g = b && b.game;
-  let gs = null; try { gs = g && { pa: g.getPlayingAs(), turn: g.getTurn(), mode: g.getMode().name, over: g.isGameOver(), n: g.getHistorySANs().length, hdr: g.getHeaders().White + ' v ' + g.getHeaders().Black, flipped: b.classList.contains('flipped') || (b.getAttribute('class')||'').includes('flipped') }; } catch (e) { gs = 'ERR ' + e.message; }
-  return { btns, colorish, modal, sidebar: sb ? sb.innerText.replace(/\s+/g, ' ').slice(0, 400) : null, gs };
-};
-const clickText = (t) => page.evaluate((t) => { const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-  const re = new RegExp('^' + t + '$', 'i');
-  const b = [...document.querySelectorAll('button, [role=button], [role=radio], label, [aria-label]')].filter(vis).find(x => re.test((x.innerText || '').trim()) || re.test(x.getAttribute('aria-label') || ''));
-  if (!b) return false; b.click(); return (b.innerText || b.getAttribute('aria-label') || '').trim().slice(0, 30) + '<' + b.tagName + '.' + String(b.className).slice(0, 60) + '>'; }, t);
-const step = async (label, t, wait = 2500) => { const r = t ? await clickText(t) : null; if (t) await page.waitForTimeout(wait); log('STEP', label, 'click', t, '->', r, JSON.stringify(await page.evaluate(UI))); return r; };
-
-await step('load');
-await step('close-modal', 'Close');
-// Is a game already live? Try engine copy promotion probe meanwhile.
-log('PROMO', await page.evaluate(() => { const g = document.querySelector('wc-chess-board').game; const out = {};
-  try { const c = g.getJCEGameCopy(); c.load('7k/P7/8/8/8/8/8/K7 w - - 0 1'); out.copyMoves = JSON.stringify(c.moves()).slice(0, 600); out.copyKeys = Object.keys(c).join(','); } catch (e) { out.copyErr = e.message; }
-  try { out.lmfs = JSON.stringify(g.getLegalMovesForSquare('e2')).slice(0, 300); } catch (e) { out.lmfsErr = e.message; }
-  try { out.isLegal = String(g.isLegalMove.toString()).slice(0, 300); out.moveSrc = String(g.move.toString()).slice(0, 300); out.resignSrc = g.resign.toString().slice(0, 300); out.undoSrc = g.undo.toString().slice(0, 300); } catch (e) { out.srcErr = e.message; }
-  return out; }));
-await step('play', 'Play');
-await step('choose?', 'Choose');
-await step('after');
-// resign the auto game to reach game-over modal, then New Bot
-await step('resign1', 'Resign', 1500);
-await step('resign2', 'Resign', 3000);
-await step('newbot', 'New Bot', 3000);
-await step('choose', 'Choose', 3000);
-await step('black', 'Black', 1500);
-await step('play2', 'Play', 4000);
-await step('settle', null);
-await page.waitForTimeout(3000);
-await step('settle2', null);
-log('URL', page.url());
-// Rematch path
-await step('r1', 'Resign', 1500); await step('r2', 'Resign', 3000);
-await step('rematch', 'Rematch', 4000);
-await page.waitForTimeout(3000); await step('rematch-settle', null);
-// reload mid-game behaviour
+const GS = () => { const b = document.querySelector('wc-chess-board'); const g = b && b.game; const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  let gs; try { gs = { pa: g.getPlayingAs(), turn: g.getTurn(), mode: g.getMode().name, over: g.isGameOver(), sans: g.getHistorySANs().join(' '), hdr: g.getHeaders().White + ' v ' + g.getHeaders().Black, flipped: b.classList.contains('flipped') }; } catch (e) { gs = 'ERR ' + e.message; }
+  const btns = [...document.querySelectorAll('button')].filter(vis).map(b => (b.innerText.trim() || ('@' + b.getAttribute('aria-label'))).replace(/\s+/g, ' ').slice(0, 25));
+  const modal = [...document.querySelectorAll('[class*=modal]')].filter(vis).map(m => m.innerText.replace(/\s+/g, ' ').slice(0, 120))[0] || null;
+  return { gs, btns, modal, cta: !!document.querySelector('[class*=bot-selection-cta]'), url: location.pathname }; };
+const html = (sel, n = 2500) => page.evaluate(([s, n]) => { const e = document.querySelector(s); return e ? e.outerHTML.replace(/\s+/g, ' ').slice(0, n) : 'NONE ' + s; }, [sel, n]);
+log('initial', await page.evaluate(GS));
+log('initial-sidebar', await page.evaluate(() => { const s = document.querySelector('.board-layout-sidebar, #board-layout-sidebar'); return s ? s.innerText.replace(/\s+/g, ' ').slice(0, 300) : null; }));
+// close any modal
+await page.evaluate(() => { const b = [...document.querySelectorAll('button[aria-label=Close]')][0]; if (b) b.click(); });
+await page.waitForTimeout(1500);
+log('after-close', await page.evaluate(GS));
 await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForTimeout(7000);
-await step('reloaded', null);
+log('reloaded', await page.evaluate(GS));
+log('PLAYAS', await html('.play-as-selector-component', 3000));
+log('CTA', await html('[class*=bot-selection-cta]', 800));
+log('BOTTILE', await html('[class*=bot-selection] [data-bot-id], [class*=bot-component], [class*=bot-selection-bot]', 1200));
+log('SELECTED-BOT', await page.evaluate(() => [...document.querySelectorAll('[class*=selected]')].slice(0, 5).map(e => e.tagName + '.' + String(e.className).slice(0, 80) + ' ' + [...e.attributes].filter(a => a.name.startsWith('data') || a.name === 'aria-label').map(a => a.name + '=' + a.value.slice(0, 40)).join(' '))));
+log('OPTIONS-BTN', await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(x => x.innerText.trim() === 'Options'); return b ? b.outerHTML.slice(0, 400) : null; }));
+// open Options to see what's inside
+await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(x => x.innerText.trim() === 'Options'); if (b) b.click(); });
+await page.waitForTimeout(1500);
+log('options-open', await page.evaluate(GS));
+log('options-sidebar', await page.evaluate(() => { const s = document.querySelector('.board-layout-sidebar, #board-layout-sidebar'); return s ? s.innerText.replace(/\s+/g, ' ').slice(0, 500) : null; }));
+log('PLAYAS2', await html('.play-as-selector-component', 3000));
+// choose black inside play-as selector
+log('pick-black', await page.evaluate(() => { const root = document.querySelector('.play-as-selector-component') || document; const c = [...root.querySelectorAll('*')].find(e => /black/i.test((e.getAttribute('aria-label') || '') + ' ' + (e.getAttribute('data-cy') || '') + ' ' + (e.getAttribute('title') || '') + ' ' + String(e.className))); if (!c) return 'none'; (c.closest('button,[role=button],[role=radio],label') || c).click(); return c.tagName + '.' + String(c.className).slice(0, 80); }));
+await page.waitForTimeout(1000);
+log('PLAYAS3', await html('.play-as-selector-component', 1500));
+await page.evaluate(() => { const b = document.querySelector('[class*=bot-selection-cta] button, button[class*=bot-selection-cta]') || [...document.querySelectorAll('button')].find(x => x.innerText.trim() === 'Play'); if (b) b.click(); });
+for (let i = 0; i < 4; i++) { await page.waitForTimeout(2500); log('after-play-' + i, await page.evaluate(GS)); }
+log('URL', page.url());
+// pick a different bot from the list: click the 3rd bot avatar we can find, then Play
+await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForTimeout(7000);
+log('reloaded2', await page.evaluate(GS));
 await browser.close();
