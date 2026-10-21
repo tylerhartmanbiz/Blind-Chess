@@ -8,6 +8,7 @@ on:
       - Chess/Core/**
       - Speech/Core/**
       - Tests/BlindChessCoreTests/**
+      - Tests/SpeechCorpus/**
       - .github/workflows/core-tests.yml
   workflow_dispatch:
 
@@ -23,6 +24,8 @@ jobs:
         run: swift test
       - name: Deep perft (release)
         run: swift test -c release -Xswiftc -enable-testing --filter PerftTests
+      - name: Speech corpus accuracy (release)
+        run: swift test -c release -Xswiftc -enable-testing --filter SpeechCorpusAccuracyTests
 
   # Type-checks the core with the app target's settings (Swift 5 mode, MainActor default isolation, approachable
   # concurrency) against the iOS SDK, since the same files are compiled straight into the app.
