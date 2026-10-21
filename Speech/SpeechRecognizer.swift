@@ -2,9 +2,9 @@
 //  SpeechRecognizer.swift
 //  Blind Chess
 //
-//  Continuous listening for moves. One recognition request per utterance: partial results are only displayed;
-//  the n-best list is delivered once the utterance ends (a final result, or `utteranceEndDelay` without a
-//  change), then a fresh request starts. Tasks that fail (silence timeouts, the server's one-minute limit)
+//  Continuous listening for moves. One recognition request per utterance: partial results are only displayed.
+//  After `utteranceEndDelay` without a change the request's audio is ended, and the n-best list of the final
+//  result is delivered (partials can lag behind the audio: "Upon to" before "E4"); then a fresh request starts. Tasks that fail (silence timeouts, the server's one-minute limit)
 //  are restarted. Listening pauses while the app speaks, during audio interruptions and in the background.
 //
 
@@ -36,7 +36,9 @@ final class SpeechRecognizer: ObservableObject {
 
     var isOn: Bool { wantsListening }
 
-    private static let utteranceEndDelay: Duration = .milliseconds(1000)
+    private static let utteranceEndDelay: Duration = .milliseconds(1200)
+    /// How long to wait for the final result after ending an utterance's audio.
+    private static let finalResultTimeout: Duration = .seconds(3)
     private static let resumeAfterSpeechDelay: Duration = .milliseconds(350)
     /// Recycle a task this old that has heard nothing, before the server's one-minute limit ends it.
     private static let idleTaskLifetime: Duration = .seconds(50)
@@ -48,6 +50,7 @@ final class SpeechRecognizer: ObservableObject {
     private var task: SFSpeechRecognitionTask?
     private var generation = 0
     private var heard: [String] = []
+    private var isFinishing = false
     private var utteranceTimer: Task<Void, Never>?
     private var idleTimer: Task<Void, Never>?
     private var resumeTimer: Task<Void, Never>?
@@ -165,6 +168,7 @@ final class SpeechRecognizer: ObservableObject {
             self?.handle(update, generation: current)
         }
         heard = []
+        isFinishing = false
         partialTranscript = ""
         idleTimer = Task { [weak self] in
             try? await Task.sleep(for: Self.idleTaskLifetime)
@@ -198,9 +202,23 @@ final class SpeechRecognizer: ObservableObject {
             deliver()
             return
         }
+        guard !isFinishing else { return }
         utteranceTimer?.cancel()
         utteranceTimer = Task { [weak self] in
             try? await Task.sleep(for: Self.utteranceEndDelay)
+            guard !Task.isCancelled, let self, self.generation == current else { return }
+            self.finishUtterance()
+        }
+    }
+
+    /// The speaker paused: end the audio so the recognizer sends its final result (handled in `handle`).
+    private func finishUtterance() {
+        isFinishing = true
+        feed.request?.endAudio()
+        feed.request = nil
+        let current = generation
+        utteranceTimer = Task { [weak self] in
+            try? await Task.sleep(for: Self.finalResultTimeout)
             guard !Task.isCancelled, let self, self.generation == current else { return }
             self.deliver()
         }

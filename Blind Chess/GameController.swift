@@ -404,8 +404,7 @@ final class GameController: ObservableObject {
         if state.phase == .playing, previous != .playing {
             startRequested = false
             autoStartRetries = 0
-            let side = userColor.map { "You play \($0.name). " } ?? ""
-            tell("\(state.ply == 0 ? "Game started" : "Game resumed"). \(side)\(turnSentence)", .info)
+            tell("\(state.ply == 0 ? "Game started" : "Game resumed"). \(turnSentence)", .info)
         }
         autoStartIfNeeded(state)
     }
