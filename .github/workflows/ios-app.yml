@@ -1,0 +1,146 @@
+name: iOS app lab (simulator)
+
+# Builds the app for the iOS Simulator, launches it, captures screenshots / video / logs,
+# runs the XCUITests, and runs the real end-to-end voice test (host TTS -> BlackHole
+# loopback -> simulator microphone -> SFSpeechRecognizer). See Tools/AppLab/README.md.
+
+on:
+  push:
+    paths:
+      - "Blind Chess.xcodeproj/**"
+      - "Blind ChessUITests/**"
+      - "Tools/AppLab/**"
+      - ".github/workflows/ios-app.yml"
+  workflow_dispatch:
+    inputs:
+      phrases:
+        description: 'Voice phrases, separated by "|"'
+        default: "pawn to e4|knight to f3|h8"
+      run_voice:
+        description: "Run the voice E2E test"
+        type: boolean
+        default: true
+
+concurrency:
+  group: ios-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator-lab:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      XCODE_APP: /Applications/Xcode_26.6.app
+      SIM_NAME: "iPhone 17"
+      SIM_OS: "26.5"
+      BUNDLE_ID: Blind-Chess.Blind-Chess
+      OUT: ${{ github.workspace }}/lab-out
+      DD: ${{ github.workspace }}/DerivedData
+      PHRASES: ${{ github.event.inputs.phrases || 'pawn to e4|knight to f3|h8' }}
+      RUN_VOICE: ${{ github.event.inputs.run_voice || 'true' }}
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environment + start audio driver install in background
+        run: |
+          mkdir -p "$OUT/lab" "$OUT/screens"
+          sudo xcode-select -s "$XCODE_APP"
+          { sw_vers; uname -m; xcodebuild -version; xcrun simctl list runtimes; } | tee "$OUT/env.txt"
+          system_profiler SPAudioDataType > "$OUT/audio_before.txt" 2>&1 || true
+          echo "--- audio devices before:"; cat "$OUT/audio_before.txt"
+          # Install BlackHole + SwitchAudioSource while the app builds.
+          ( bash Tools/AppLab/setup_audio.sh > "$OUT/setup_audio.log" 2>&1; echo $? > "$OUT/setup_audio.rc" ) &
+
+      - name: Build app + UI tests for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project "Blind Chess.xcodeproj" -scheme "Blind Chess" -configuration Debug \
+            -destination "generic/platform=iOS Simulator" -derivedDataPath "$DD" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$OUT/build.log" | grep -E "error:|warning: .*(deprecated|Audio)|BUILD|TEST BUILD" || true
+          grep -q "TEST BUILD SUCCEEDED\|BUILD SUCCEEDED" "$OUT/build.log" || { tail -80 "$OUT/build.log"; exit 1; }
+          find "$DD/Build/Products" -maxdepth 2 \( -name "*.app" -o -name "*.xctestrun" \) | tee "$OUT/products.txt"
+
+      - name: Audio loopback (BlackHole) + host check
+        run: |
+          for i in $(seq 1 180); do [[ -f "$OUT/setup_audio.rc" ]] && break; sleep 2; done
+          echo "setup_audio rc=$(cat "$OUT/setup_audio.rc" 2>/dev/null || echo timeout)"; cat "$OUT/setup_audio.log" | tail -40
+          system_profiler SPAudioDataType > "$OUT/audio_after.txt" 2>&1 || true
+          cat "$OUT/audio_after.txt"
+          # Prove output -> loopback -> input on the host itself.
+          ( swift Tools/AppLab/mic_level.swift 15 > "$OUT/host_mic_level.txt" 2>&1 ) &
+          sleep 9
+          Tools/AppLab/play_phrase.sh "pawn to e four" || true
+          wait
+          cat "$OUT/host_mic_level.txt"
+
+      - name: Boot simulator, grant permissions, install app
+        run: |
+          eval "$(Tools/AppLab/sim_prepare.sh "$SIM_NAME" "$SIM_OS" "$BUNDLE_ID" 2> >(tee "$OUT/sim_prepare.log" >&2))"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          APP=$(find "$DD/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "Blind Chess.app" | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl privacy "$UDID" grant microphone "$BUNDLE_ID" || true
+
+      - name: Launch via simctl, record video, screenshots, logs
+        run: |
+          xcrun simctl spawn "$UDID" log stream --level debug --style compact \
+            --predicate 'process == "Blind Chess" OR process CONTAINS[c] "speech" OR process == "assistantd" OR subsystem CONTAINS[c] "speech"' \
+            > "$OUT/sim_log_stream.txt" 2>&1 &
+          echo $! > "$OUT/logstream.pid"
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/launch.mp4" > "$OUT/record1.log" 2>&1 &
+          REC=$!
+          sleep 2
+          xcrun simctl launch --terminate-running-process --stdout="$OUT/app_stdout_simctl.log" --stderr="$OUT/app_stdout_simctl.log" "$UDID" "$BUNDLE_ID"
+          for t in 3 10 20 35; do
+            sleep $(( t - ${prev:-0} )); prev=$t
+            xcrun simctl io "$UDID" screenshot "$OUT/screens/simctl_${t}s.png" >/dev/null 2>&1 || true
+          done
+          kill -INT $REC 2>/dev/null || true; wait $REC || true
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+          echo "--- app stdout (simctl launch):"; cat "$OUT/app_stdout_simctl.log" || true
+
+      - name: UI tests (smoke + voice E2E)
+        run: |
+          XCTESTRUN=$(find "$DD/Build/Products" -maxdepth 1 -name "*.xctestrun" | head -1)
+          ONLY="-only-testing:Blind ChessUITests/SmokeUITests"
+          if [[ "$RUN_VOICE" == "true" ]]; then
+            ONLY="-only-testing:Blind ChessUITests"
+            Tools/AppLab/voice_driver.sh "$OUT/lab" 900 > "$OUT/voice_driver.log" 2>&1 &
+          fi
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/uitests.mp4" > "$OUT/record2.log" 2>&1 &
+          REC=$!
+          set +e
+          TEST_RUNNER_APPLAB_DIR="$OUT/lab" TEST_RUNNER_APPLAB_PHRASES="$PHRASES" \
+          xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination "id=$UDID" \
+            "$ONLY" -resultBundlePath "$OUT/UITests.xcresult" > "$OUT/uitest.log" 2>&1
+          RC=$?
+          set -e
+          kill -INT $REC 2>/dev/null || true; wait $REC || true
+          grep -E "Test Case|error|AppLab|TEST (SUCCEEDED|FAILED)|Executed" "$OUT/uitest.log" | tail -80 || true
+          echo "--- voice driver:"; cat "$OUT/voice_driver.log" 2>/dev/null || true
+          echo "--- voice results:"; cat "$OUT/lab/voice/summary.txt" 2>/dev/null || ls -la "$OUT/lab" "$OUT/lab/voice" 2>/dev/null || true
+          echo "--- app stdout (UI tests):"; tail -60 "$OUT/lab/app_stdout_uitest.log" 2>/dev/null || true
+          echo "--- chess.com web texts:"; head -40 "$OUT/lab/chesscom_web_texts.txt" 2>/dev/null || true
+          echo "UITEST_RC=$RC" | tee -a "$OUT/summary.txt"
+
+      - name: Summary
+        if: always()
+        run: |
+          kill "$(cat "$OUT/logstream.pid" 2>/dev/null)" 2>/dev/null || true
+          {
+            echo "## iOS app lab"; echo; echo '```'; head -3 "$OUT/env.txt" 2>/dev/null; cat "$OUT/summary.txt" 2>/dev/null
+            cat "$OUT/host_mic_level.txt" 2>/dev/null; echo '```'
+            echo "### Voice"; echo '```'; cat "$OUT/lab/voice/summary.txt" 2>/dev/null || echo "no voice results"; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -iE "recogni|speech|audio|error" "$OUT/sim_log_stream.txt" 2>/dev/null | grep -v "^$" | tail -60 || true
+          (cd "$OUT" && zip -qry UITests.xcresult.zip UITests.xcresult && rm -rf UITests.xcresult) || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-app-lab-${{ github.run_id }}
+          path: lab-out
+          retention-days: 14
