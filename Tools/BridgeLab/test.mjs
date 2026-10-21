@@ -310,6 +310,7 @@ await shot('final');
 result('state() FEN consistent with SAN history after every turn', fenMismatch.length === 0, { mismatches: fenMismatch.length, first: fenMismatch[0] });
 result('legalMoves() matches chess.js on every turn', legalMismatch.length === 0, { mismatches: legalMismatch.length, first: legalMismatch[0] });
 const passed = results.filter(r => r.pass).length;
+results.filter(r => !r.pass).forEach(r => log('FAILED', r.name, typeof r.detail === 'string' ? r.detail : JSON.stringify(r.detail).slice(0, 400)));
 log('COVERAGE', JSON.stringify(coverage));
 log('SUMMARY', JSON.stringify({ passed, failed: results.length - passed, games: games.map(g => ({ label: g.label, color: g.color, plies: g.plies, result: g.result, errors: g.errors.length })) }));
 fs.writeFileSync(`${out}/results.json`, JSON.stringify({ results, coverage, games, fenMismatch, legalMismatch }, null, 1));

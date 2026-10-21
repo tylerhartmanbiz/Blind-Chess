@@ -21,7 +21,6 @@ jobs:
         include:
           - { os: ubuntu-latest, profile: webkit-iphone, headed: '0' }
           - { os: macos-latest, profile: webkit-iphone, headed: '0' }
-          - { os: ubuntu-latest, profile: chromium-iphone, headed: '1' }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     steps:

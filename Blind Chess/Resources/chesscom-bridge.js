@@ -181,15 +181,19 @@
     var prevSans = T.sans || [];
     var cp = 0;
     while (cp < prevSans.length && cp < n && prevSans[cp] === st.sanHistory[cp]) cp++;
-    var newGame = (T.overSent && !st.gameOver) || (n === 0 && prevSans.length > 0) ||
-      (cp === 0 && prevSans.length > 0 && n > 0 && (T.overSent || T.overSince));
+    var diverged = cp < prevSans.length;
+    // After "New Bot" the board can keep showing the finished game while isGameOver() is already false:
+    // that is not a new game yet (history unchanged), so nothing is replayed. A new game is a history
+    // that no longer extends the previous one (or an empty one) once the previous game ended.
+    var newGame = (diverged && (T.overSent || T.overSince || cp === 0)) ||
+      (T.overSent && !st.gameOver && (n === 0 || prevSans.length === 0) && n !== prevSans.length);
     if (newGame) {
       // Rematch / New Bot / Play: history replaced. The bot may already have played ply 1 (we are Black),
       // so announce the new game and then emit every ply of the new history.
       T.gameId++; T.overSent = false; T.overSince = 0; T.pa = null; st = buildState();
       post({ type: 'newGame', playingAs: st.playingAs, fen: st.sanHistory.length ? null : st.fen });
       T.plies = 0;
-    } else if (cp < prevSans.length) {
+    } else if (diverged) {
       // Undo / takeback (possibly already followed by new moves): rewind to the common prefix.
       post({ type: 'takeback', ply: cp, fen: cp === n ? st.fen : null, sanHistory: st.sanHistory.slice(0, cp) });
       T.plies = cp;
