@@ -1,0 +1,46 @@
+name: Core tests
+
+# Builds and tests the pure-Swift core (Package.swift: Chess/Core, Speech/Core, Tests/BlindChessCoreTests).
+on:
+  push:
+    paths:
+      - Package.swift
+      - Chess/Core/**
+      - Speech/Core/**
+      - Tests/BlindChessCoreTests/**
+      - .github/workflows/core-tests.yml
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version
+      - name: Unit tests (debug)
+        run: swift test
+      - name: Deep perft (release)
+        run: swift test -c release -Xswiftc -enable-testing --filter PerftTests
+
+  # Type-checks the core with the app target's settings (Swift 5 mode, MainActor default isolation, approachable
+  # concurrency) against the iOS SDK, since the same files are compiled straight into the app.
+  app-settings:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Type-check core as app code
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          xcrun swiftc -typecheck -swift-version 5 \
+            -default-isolation MainActor \
+            -enable-upcoming-feature InferIsolatedConformances \
+            -enable-upcoming-feature NonisolatedNonsendingByDefault \
+            -enable-upcoming-feature InferSendableFromCaptures \
+            -enable-upcoming-feature GlobalActorIsolatedTypesUsability \
+            -enable-upcoming-feature DisableOutwardActorInference \
+            -enable-upcoming-feature MemberImportVisibility \
+            -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" -target arm64-apple-ios26.0-simulator \
+            Chess/Core/*.swift Speech/Core/*.swift
