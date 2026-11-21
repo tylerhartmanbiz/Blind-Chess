@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Pupil Response Test</title>
+<style>
+  :root{--bg:#808080;--fg:#9a9a9a;--ui:#1b1b1f;--card:#26262c;--acc:#7cc4ff;--txt:#eee}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:var(--ui);color:var(--txt)}
+  .screen{display:none;min-height:100dvh;padding:18px}
+  .screen.on{display:block}
+  h1{font-size:22px;margin:4px 0 6px}
+  p.small{font-size:13px;opacity:.75;line-height:1.4}
+  textarea{width:100%;height:170px;background:var(--card);color:var(--txt);border:1px solid #444;border-radius:10px;padding:10px;font-size:15px}
+  button{background:var(--acc);color:#000;border:0;border-radius:12px;padding:14px 18px;font-size:16px;font-weight:600;width:100%;margin-top:10px}
+  button.sec{background:#3a3a44;color:var(--txt)}
+  .row{display:flex;gap:10px}.row button{flex:1}
+  #previewWrap{position:relative;width:100%;max-width:420px;margin:10px auto;border-radius:12px;overflow:hidden;background:#000}
+  #preview{width:100%;display:block;transform:scaleX(-1)}
+  #overlay{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1)}
+  #eyes{display:flex;gap:8px;justify-content:center;margin-top:6px}
+  #eyes canvas{width:120px;height:120px;border-radius:8px;background:#000;image-rendering:pixelated}
+  .stat{font-variant-numeric:tabular-nums;font-size:14px;text-align:center;margin-top:6px}
+  /* test screen: constant grey to keep light level steady */
+  #test{background:var(--bg);display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px}
+  #test.on{display:flex}
+  #stim{font-size:34px;font-weight:600;color:var(--fg);min-height:90px;display:flex;align-items:center}
+  #fix{font-size:40px;color:var(--fg)}
+  #status{position:fixed;top:10px;left:0;right:0;text-align:center;font-size:12px;color:#6a6a6a}
+  #rate{display:none;width:100%;max-width:380px}
+  #rate p{color:#5a5a5a;margin:0 0 4px}
+  #rate button{background:#737373;color:#ccc}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
+  td,th{padding:8px 6px;border-bottom:1px solid #333;text-align:left}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .bar{height:8px;border-radius:4px;display:inline-block;vertical-align:middle}
+  .card{background:var(--card);border-radius:12px;padding:12px;margin-top:12px;font-size:14px;line-height:1.45}
+  #warn{color:#ffb86b}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="setup" class="screen on">
+  <h1>Pupil Response Test</h1>
+  <p class="small">Your front camera tracks your irises and estimates pupil size while each item appears. Before each item you see a grey screen with a +, which is the baseline. Then you rate the item. At the end you'll see whether your pupils got bigger for things you like.</p>
+  <label class="small">Items, one per line:</label>
+  <textarea id="items">Pizza
+Spiders
+Beach vacation
+Taxes
+Puppies
+Traffic jam
+Chocolate
+Dentist visit
+Your favorite song
+Waking up early</textarea>
+  <div class="row">
+    <label class="small" style="flex:1">Baseline (s) <input id="tBase" type="number" value="4" min="2" max="10" style="width:50px"></label>
+    <label class="small" style="flex:1">Item (s) <input id="tItem" type="number" value="6" min="3" max="15" style="width:50px"></label>
+  </div>
+  <button id="btnCam">1. Start camera &amp; check tracking</button>
+  <div id="previewWrap" style="display:none"><video id="preview" playsinline muted></video><canvas id="overlay"></canvas></div>
+  <div id="eyes" style="display:none"><canvas id="eyeL" width="60" height="60"></canvas><canvas id="eyeR" width="60" height="60"></canvas></div>
+  <div class="stat" id="live"></div>
+  <button id="btnRun" disabled>2. Run test</button>
+  <div class="card small">
+    <b>For a usable result:</b> sit in steady, even light (no window behind you, no lamp moving). Hold the phone at about 30 cm, eyes level with the camera. Set brightness to a fixed level and turn off auto-brightness and Night Shift / True Tone. Don't blink during items. In the eye previews, the pupil should show as a red-filled dark area. If it doesn't, move to brighter light.
+  </div>
+</div>
+
+<!-- TEST -->
+<div id="test" class="screen">
+  <div id="status"></div>
+  <div id="fix">+</div>
+  <div id="stim"></div>
+  <div id="rate">
+    <p>How do you feel about it?</p>
+    <div class="row"><button data-r="-2">Hate</button><button data-r="-1">Dislike</button></div>
+    <div class="row"><button data-r="0">Neutral</button></div>
+    <div class="row"><button data-r="1">Like</button><button data-r="2">Love</button></div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="results" class="screen">
+  <h1>Results</h1>
+  <div id="summary" class="card"></div>
+  <table id="tbl"></table>
+  <div class="card small">"Δ pupil" is the change in pupil size during the item compared with the grey baseline just before it. Positive means dilation. "Quality" is the share of frames where both pupils were measured. Rows below 60% are unreliable. Phone-camera pupillometry is noisy: treat this as a fun experiment, not a lie detector. Run it 2–3 times and see whether the pattern holds.</div>
+  <div class="row"><button id="btnCopy" class="sec">Copy results</button><button id="btnAgain">Run again</button></div>
+</div>
+
+<script type="module">
+import {FaceLandmarker, FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+const $ = id => document.getElementById(id);
+const video = $('preview'), overlay = $('overlay'), octx = overlay.getContext('2d');
+const grab = document.createElement('canvas'), gctx = grab.getContext('2d', {willReadFrequently:true});
+let landmarker = null, running = false, lastT = -1;
+let sink = null;           // function(sample) collecting during test
+let liveBuf = [];
+
+// iris landmark indices (MediaPipe FaceMesh with refined iris)
+const IRIS = [{c:468, ring:[469,470,471,472]}, {c:473, ring:[474,475,476,477]}];
+
+$('btnCam').onclick = async () => {
+  $('btnCam').disabled = true; $('btnCam').textContent = 'Loading model…';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:1280}, height:{ideal:720}}, audio:false});
+    video.srcObject = stream; await video.play();
+    const fs = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    landmarker = await FaceLandmarker.createFromOptions(fs, {
+      baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate:"GPU"},
+      runningMode:"VIDEO", numFaces:1
+    });
+    $('previewWrap').style.display = 'block'; $('eyes').style.display = 'flex';
+    $('btnCam').textContent = 'Camera on ✓'; $('btnRun').disabled = false;
+    running = true; requestAnimationFrame(loop);
+  } catch (e) {
+    $('btnCam').disabled = false; $('btnCam').textContent = '1. Start camera & check tracking';
+    $('live').innerHTML = '<span id="warn">Could not start: ' + e.message + '. Open this page over https (or localhost) in Safari or Chrome, and allow camera access.</span>';
+  }
+};
+
+// Estimate pupil/iris ratio for one eye from pixels inside the iris circle.
+function measureEye(lm, eye, W, H, dbgCanvas) {
+  const c = lm[eye.c];
+  const cx = c.x * W, cy = c.y * H;
+  let r = 0; for (const i of eye.ring) r += Math.hypot(lm[i].x*W - cx, lm[i].y*H - cy); r /= 4;
+  if (r < 4) return null;                     // too far / too small
+  const size = Math.ceil(r * 2.2), x0 = Math.round(cx - size/2), y0 = Math.round(cy - size/2);
+  if (x0 < 0 || y0 < 0 || x0 + size > W || y0 + size > H) return null;
+  const img = gctx.getImageData(x0, y0, size, size), d = img.data;
+  const lum = [], idx = [];
+  const rr = (r * 0.85) ** 2;                 // stay inside iris, avoid lid/sclera
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const dx = x - size/2, dy = y - size/2;
+    if (dx*dx + dy*dy > rr) continue;
+    const k = (y*size + x) * 4;
+    lum.push(0.299*d[k] + 0.587*d[k+1] + 0.114*d[k+2]); idx.push(k);
+  }
+  if (lum.length < 30) return null;
+  const s = [...lum].sort((a,b)=>a-b);
+  const lo = s[Math.floor(s.length*0.03)], med = s[Math.floor(s.length*0.6)];
+  if (med - lo < 8) return null;              // no contrast: can't separate pupil
+  const thr = lo + 0.45 * (med - lo);
+  let dark = 0;
+  for (let i = 0; i < lum.length; i++) if (lum[i] < thr) { dark++; if (dbgCanvas) { d[idx[i]] = 255; d[idx[i]+1] *= .3; d[idx[i]+2] *= .3; } }
+  if (dbgCanvas) { const t = document.createElement('canvas'); t.width = t.height = size; t.getContext('2d').putImageData(img,0,0);
+    const dc = dbgCanvas.getContext('2d'); dc.save(); dc.scale(-1,1); dc.drawImage(t, -60, 0, 60, 60); dc.restore(); }
+  // ratio of pupil diameter to (0.85·iris) diameter; insensitive to camera distance
+  return Math.sqrt(dark / lum.length);
+}
+
+// Eye openness (blink detection): lid gap / eye width
+function openness(lm, a, b, l, r) { return Math.hypot(lm[a].x-lm[b].x, lm[a].y-lm[b].y) / Math.hypot(lm[l].x-lm[r].x, lm[l].y-lm[r].y); }
+
+function loop() {
+  if (!running) return;
+  requestAnimationFrame(loop);
+  if (video.readyState < 2 || video.currentTime === lastT) return;
+  lastT = video.currentTime;
+  const W = video.videoWidth, H = video.videoHeight;
+  if (grab.width !== W) { grab.width = W; grab.height = H; overlay.width = W; overlay.height = H; }
+  gctx.drawImage(video, 0, 0, W, H);
+  const res = landmarker.detectForVideo(video, performance.now());
+  const showDbg = $('setup').classList.contains('on');
+  if (showDbg) octx.clearRect(0, 0, W, H);
+  let sample = {ok:false};
+  if (res.faceLandmarks && res.faceLandmarks.length) {
+    const lm = res.faceLandmarks[0];
+    const open = Math.min(openness(lm,159,145,33,133), openness(lm,386,374,362,263));
+    const blink = open < 0.18;
+    const a = blink ? null : measureEye(lm, IRIS[0], W, H, showDbg ? $('eyeR') : null);
+    const b = blink ? null : measureEye(lm, IRIS[1], W, H, showDbg ? $('eyeL') : null);
+    if (a != null && b != null) sample = {ok:true, v:(a+b)/2};
+    if (showDbg) {
+      octx.strokeStyle = sample.ok ? '#4f4' : '#f44'; octx.lineWidth = 3;
+      for (const e of IRIS) { const c = lm[e.c], q = lm[e.ring[0]];
+        octx.beginPath(); octx.arc(c.x*W, c.y*H, Math.hypot((q.x-c.x)*W,(q.y-c.y)*H), 0, 7); octx.stroke(); }
+    }
+  }
+  if (sink) sink(sample);
+  if (showDbg) {
+    liveBuf.push(sample); if (liveBuf.length > 60) liveBuf.shift();
+    const good = liveBuf.filter(s=>s.ok);
+    const q = Math.round(100*good.length/liveBuf.length);
+    const v = good.length ? median(good.map(s=>s.v)) : 0;
+    $('live').innerHTML = `Tracking quality: <b>${q}%</b> · pupil/iris: <b>${v.toFixed(3)}</b>` + (q < 60 ? '<br><span id="warn">Low quality. Get more light on your face and hold steady.</span>' : '');
+  }
+}
+
+const median = a => { if (!a.length) return NaN; const s = [...a].sort((x,y)=>x-y), m = s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function collect(ms) { return new Promise(res => { const buf = []; sink = s => buf.push(s); setTimeout(() => { sink = null; res(buf); }, ms); }); }
+function waitRating() { return new Promise(res => { $('rate').style.display = 'block';
+  $('rate').querySelectorAll('button').forEach(b => b.onclick = () => { $('rate').style.display = 'none'; res(+b.dataset.r); }); }); }
+
+let results = [];
+$('btnRun').onclick = async () => {
+  const items = $('items').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if (!items.length) return;
+  const tB = Math.max(2, +$('tBase').value) * 1000, tI = Math.max(3, +$('tItem').value) * 1000;
+  for (const s of ['setup','results']) $(s).classList.remove('on');
+  $('test').classList.add('on');
+  try { await document.documentElement.requestFullscreen?.(); } catch {}
+  // shuffle to avoid order effects
+  const order = items.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+  results = [];
+  // warm-up: let eyes adapt to grey screen
+  $('stim').textContent = ''; $('fix').style.display = 'block';
+  $('status').textContent = 'Adapting to screen… look at the +';
+  await sleep(5000);
+  for (let i = 0; i < order.length; i++) {
+    $('status').textContent = `${i+1} / ${order.length}`;
+    $('stim').textContent = ''; $('fix').style.display = 'block';
+    const base = await collect(tB);
+    $('fix').style.display = 'none'; $('stim').textContent = order[i];
+    await sleep(1000);                         // skip the first second (orienting response)
+    const resp = await collect(tI - 1000);
+    $('stim').textContent = '';
+    const rating = await waitRating();
+    const bg = base.filter(s=>s.ok).map(s=>s.v), rg = resp.filter(s=>s.ok).map(s=>s.v);
+    const bm = median(bg.slice(Math.floor(bg.length/3))); // last 2/3 of baseline
+    const rm = median(rg);
+    const q = (bg.length + rg.length) / Math.max(1, base.length + resp.length);
+    results.push({item:order[i], rating, delta: (rm - bm) / bm * 100, quality: q});
+  }
+  try { await document.exitFullscreen?.(); } catch {}
+  showResults();
+};
+
+function pearson(x, y) { const n = x.length; if (n < 3) return NaN;
+  const mx = x.reduce((a,b)=>a+b)/n, my = y.reduce((a,b)=>a+b)/n;
+  let sxy=0,sxx=0,syy=0; for (let i=0;i<n;i++){const a=x[i]-mx,b=y[i]-my;sxy+=a*b;sxx+=a*a;syy+=b*b;}
+  return sxy/Math.sqrt(sxx*syy); }
+
+function showResults() {
+  $('test').classList.remove('on'); $('results').classList.add('on');
+  const valid = results.filter(r => isFinite(r.delta) && r.quality >= 0.6);
+  const sorted = [...results].sort((a,b) => (isFinite(b.delta)?b.delta:-1e9) - (isFinite(a.delta)?a.delta:-1e9));
+  const maxAbs = Math.max(1, ...valid.map(r=>Math.abs(r.delta)));
+  const lbl = {'-2':'Hate','-1':'Dislike','0':'Neutral','1':'Like','2':'Love'};
+  $('tbl').innerHTML = '<tr><th>Item</th><th>You said</th><th class="n">Δ pupil</th><th class="n">Quality</th></tr>' +
+    sorted.map(r => { const ok = isFinite(r.delta) && r.quality >= 0.6;
+      const w = ok ? Math.round(40*Math.abs(r.delta)/maxAbs) : 0, col = r.delta >= 0 ? '#7cc4ff' : '#ff8a7a';
+      return `<tr style="opacity:${ok?1:.45}"><td>${esc(r.item)}</td><td>${lbl[r.rating]}</td>
+        <td class="n">${isFinite(r.delta)?(r.delta>0?'+':'')+r.delta.toFixed(1)+'%':'—'} <span class="bar" style="width:${w}px;background:${col}"></span></td>
+        <td class="n">${Math.round(r.quality*100)}%</td></tr>`; }).join('');
+  const likes = valid.filter(r=>r.rating>0).map(r=>r.delta), dis = valid.filter(r=>r.rating<0).map(r=>r.delta);
+  const avg = a => a.length ? a.reduce((x,y)=>x+y)/a.length : NaN;
+  const r = pearson(valid.map(v=>v.rating), valid.map(v=>v.delta));
+  const fmt = v => isFinite(v) ? (v>0?'+':'') + v.toFixed(1) + '%' : 'n/a';
+  let verdict;
+  if (valid.length < 4) verdict = 'Not enough reliable measurements. Try brighter, steadier lighting.';
+  else if (r > 0.3) verdict = '✅ Your pupils tended to <b>dilate more for things you like</b>.';
+  else if (r < -0.3) verdict = '🔄 Your pupils tended to dilate more for things you <b>dislike</b>. Strong negative feelings can cause dilation too, because pupils respond to arousal, not just liking.';
+  else verdict = '➖ No clear link between your ratings and pupil size this run.';
+  $('summary').innerHTML = `${verdict}<br><br>Avg Δ for liked items: <b>${fmt(avg(likes))}</b><br>Avg Δ for disliked items: <b>${fmt(avg(dis))}</b><br>Correlation (rating vs Δ): <b>${isFinite(r)?r.toFixed(2):'n/a'}</b> · ${valid.length}/${results.length} items reliable`;
+}
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+$('btnAgain').onclick = () => { $('results').classList.remove('on'); $('setup').classList.add('on'); };
+$('btnCopy').onclick = async () => {
+  const t = results.map(r => `${r.item}\t${r.rating}\t${isFinite(r.delta)?r.delta.toFixed(2):''}\t${Math.round(r.quality*100)}%`).join('\n');
+  try { await navigator.clipboard.writeText('item\trating\tdelta%\tquality\n' + t); $('btnCopy').textContent = 'Copied ✓'; } catch { $('btnCopy').textContent = 'Copy failed'; }
+};
+</script>
+</body>
+</html>
