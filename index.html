@@ -34,10 +34,7 @@
   #thumbs .miss{display:flex;align-items:center;justify-content:center;font-size:10px;color:#ffb86b}
   #stim{font-size:26px;font-weight:600;color:var(--fg);min-height:40px;display:flex;align-items:center}
   #status{position:fixed;top:10px;left:0;right:0;text-align:center;font-size:12px;color:#6a6a6a}
-  #rate{display:none;width:100%;max-width:380px}
-  #rate p{color:#5a5a5a;margin:0 0 4px}
-  #rate button{background:#737373;color:#ccc}
-  table{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
+    table{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
   td,th{padding:8px 6px;border-bottom:1px solid #333;text-align:left}
   td.n{text-align:right;font-variant-numeric:tabular-nums}
   .bar{height:8px;border-radius:4px;display:inline-block;vertical-align:middle}
@@ -50,18 +47,20 @@
 <!-- SETUP -->
 <div id="setup" class="screen on">
   <h1>Pupil Response Test</h1>
-  <p class="small">Your front camera tracks your irises and estimates pupil size while each item appears. Each item shows as a picture. Before it you see a scrambled version of the same picture, with the same brightness, as the baseline. Then you rate the item. At the end you'll see whether your pupils got bigger for things you like.</p>
+  <p class="small">Your front camera tracks your irises and estimates pupil size while each item appears. Each item shows as a picture. Before it you see a scrambled version of the same picture, with the same brightness, as the baseline. At the end, each item gets a score out of 10 based on how much your pupils widened. Use things you can picture, like foods, animals or objects.</p>
   <label class="small">Items, one per line:</label>
   <textarea id="items">Pizza
-Spiders
-Beach vacation
-Taxes
-Puppies
-Traffic jam
+Puppy
+Spider
 Chocolate
-Dentist visit
-Your favorite song
-Waking up early</textarea>
+Cockroach
+Sports car
+Broccoli
+Kitten
+Snake
+Cupcake
+Rat
+Beach</textarea>
   <label class="small">Optional: add your own photos (the file name becomes the item name). <input id="own" type="file" accept="image/*" multiple></label>
   <button id="btnPics" class="sec">Load pictures</button>
   <div id="thumbs"></div>
@@ -84,12 +83,6 @@ Waking up early</textarea>
   <div id="status"></div>
   <div id="picWrap"><canvas id="pic" width="380" height="380"></canvas><div id="fix">+</div></div>
   <div id="stim"></div>
-  <div id="rate">
-    <p>How do you feel about it?</p>
-    <div class="row"><button data-r="-2">Hate</button><button data-r="-1">Dislike</button></div>
-    <div class="row"><button data-r="0">Neutral</button></div>
-    <div class="row"><button data-r="1">Like</button><button data-r="2">Love</button></div>
-  </div>
 </div>
 
 <!-- RESULTS -->
@@ -97,7 +90,7 @@ Waking up early</textarea>
   <h1>Results</h1>
   <div id="summary" class="card"></div>
   <table id="tbl"></table>
-  <div class="card small">"Δ pupil" is the change in pupil size during the item compared with the grey baseline just before it. Positive means dilation. "Quality" is the share of frames where both pupils were measured. Rows below 60% are unreliable. Phone-camera pupillometry is noisy: treat this as a fun experiment, not a lie detector. Run it 2–3 times and see whether the pattern holds.</div>
+  <div class="card small">The score out of 10 ranks how much your pupils widened for each picture compared with the others. "Δ pupil" is the raw change versus the scrambled baseline just before it. Pupils also widen for things that excite or disgust you, so a high score means a strong reaction, which isn't always liking. "Quality" is the share of frames where both pupils were measured. Rows below 60% are unreliable. Phone-camera pupillometry is noisy: treat this as a fun experiment, not a lie detector. Run it 2–3 times and see whether the pattern holds.</div>
   <div class="row"><button id="btnCopy" class="sec">Copy results</button><button id="btnAgain">Run again</button></div>
 </div>
 
@@ -204,8 +197,6 @@ function loop() {
 const median = a => { if (!a.length) return NaN; const s = [...a].sort((x,y)=>x-y), m = s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function collect(ms) { return new Promise(res => { const buf = []; sink = s => buf.push(s); setTimeout(() => { sink = null; res(buf); }, ms); }); }
-function waitRating() { return new Promise(res => { $('rate').style.display = 'block';
-  $('rate').querySelectorAll('button').forEach(b => b.onclick = () => { $('rate').style.display = 'none'; res(+b.dataset.r); }); }); }
 
 
 // ---------- pictures ----------
@@ -213,6 +204,8 @@ const S = 380, TARGET = 128;          // canvas size, target mean luminance (mat
 let pics = new Map();                 // name -> {img, scr} canvases, or null if not found
 function loadImg(src){ return new Promise((res,rej)=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=rej; i.src=src; }); }
 async function wikiImage(q){
+  const t='https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=600&titles='+encodeURIComponent(q);
+  try{ const jt=await (await fetch(t)).json(); const pt=Object.values(jt?.query?.pages||{}).find(p=>p.thumbnail); if(pt) return pt.thumbnail.source; }catch{}
   const u='https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=3&prop=pageimages&piprop=thumbnail&pithumbsize=600&gsrsearch='+encodeURIComponent(q);
   const j=await (await fetch(u)).json(); const pages=Object.values(j?.query?.pages||{}).sort((a,b)=>a.index-b.index);
   const p=pages.find(p=>p.thumbnail); return p ? p.thumbnail.source : null;
@@ -270,7 +263,11 @@ $('btnRun').onclick = async () => {
   $('test').classList.add('on');
   try { await document.documentElement.requestFullscreen?.(); } catch {}
   // shuffle to avoid order effects
-  const order = items.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+  const missing = items.filter(n=>!pics.get(n));
+  const usable = items.filter(n=>pics.get(n));
+  if (!usable.length) { $('live').innerHTML='<span id="warn">No pictures could be loaded. Check your internet connection or add your own photos.</span>'; return; }
+  if (missing.length) $('live').innerHTML='<span id="warn">Skipped (no picture): '+missing.map(esc).join(', ')+'</span>';
+  const order = usable.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
   results = [];
   // warm-up: let eyes adapt to grey screen
   $('stim').textContent = ''; $('fix').style.display = 'flex'; showPic(null);
@@ -285,51 +282,43 @@ $('btnRun').onclick = async () => {
     await sleep(1000);                         // skip the first second (orienting response)
     const resp = await collect(tI - 1000);
     $('stim').textContent = ''; showPic(null);
-    const rating = await waitRating();
+    await sleep(1500);                         // short grey pause before next baseline
     const bg = base.filter(s=>s.ok).map(s=>s.v), rg = resp.filter(s=>s.ok).map(s=>s.v);
     const bm = median(bg.slice(Math.floor(bg.length/3))); // last 2/3 of baseline
     const rm = median(rg);
     const q = (bg.length + rg.length) / Math.max(1, base.length + resp.length);
-    results.push({item:order[i], rating, delta: (rm - bm) / bm * 100, quality: q});
+    results.push({item:order[i], delta: (rm - bm) / bm * 100, quality: q});
   }
   try { await document.exitFullscreen?.(); } catch {}
   showResults();
 };
 
-function pearson(x, y) { const n = x.length; if (n < 3) return NaN;
-  const mx = x.reduce((a,b)=>a+b)/n, my = y.reduce((a,b)=>a+b)/n;
-  let sxy=0,sxx=0,syy=0; for (let i=0;i<n;i++){const a=x[i]-mx,b=y[i]-my;sxy+=a*b;sxx+=a*a;syy+=b*b;}
-  return sxy/Math.sqrt(sxx*syy); }
-
 function showResults() {
   $('test').classList.remove('on'); $('results').classList.add('on');
-  const valid = results.filter(r => isFinite(r.delta) && r.quality >= 0.6);
-  const sorted = [...results].sort((a,b) => (isFinite(b.delta)?b.delta:-1e9) - (isFinite(a.delta)?a.delta:-1e9));
-  const maxAbs = Math.max(1, ...valid.map(r=>Math.abs(r.delta)));
-  const lbl = {'-2':'Hate','-1':'Dislike','0':'Neutral','1':'Like','2':'Love'};
-  $('tbl').innerHTML = '<tr><th>Item</th><th>You said</th><th class="n">Δ pupil</th><th class="n">Quality</th></tr>' +
-    sorted.map(r => { const ok = isFinite(r.delta) && r.quality >= 0.6;
-      const w = ok ? Math.round(40*Math.abs(r.delta)/maxAbs) : 0, col = r.delta >= 0 ? '#7cc4ff' : '#ff8a7a';
-      return `<tr style="opacity:${ok?1:.45}"><td>${esc(r.item)}</td><td>${lbl[r.rating]}</td>
-        <td class="n">${isFinite(r.delta)?(r.delta>0?'+':'')+r.delta.toFixed(1)+'%':'—'} <span class="bar" style="width:${w}px;background:${col}"></span></td>
+  const ok = r => isFinite(r.delta) && r.quality >= 0.6;
+  const valid = results.filter(ok);
+  // score relative to the other items: z-score of pupil change -> 1..10
+  const mean = valid.reduce((a,r)=>a+r.delta,0)/Math.max(1,valid.length);
+  const sd = Math.sqrt(valid.reduce((a,r)=>a+(r.delta-mean)**2,0)/Math.max(1,valid.length)) || 1;
+  for (const r of results) r.score = ok(r) ? Math.max(1, Math.min(10, 5.5 + 2.25*(r.delta-mean)/sd)) : NaN;
+  const sorted = [...results].sort((a,b)=>(isFinite(b.score)?b.score:-1)-(isFinite(a.score)?a.score:-1));
+  $('tbl').innerHTML = '<tr><th></th><th>Item</th><th class="n">Score</th><th class="n">Δ pupil</th><th class="n">Quality</th></tr>' +
+    sorted.map((r,k) => { const g = ok(r), w = g ? Math.round(6*r.score) : 0;
+      return `<tr style="opacity:${g?1:.45}"><td><canvas data-k="${k}" width="44" height="44" style="border-radius:6px;display:block"></canvas></td><td>${esc(r.item)}</td>
+        <td class="n"><b>${g ? r.score.toFixed(1)+'/10' : '—'}</b><br><span class="bar" style="width:${w}px;background:#7cc4ff"></span></td>
+        <td class="n">${isFinite(r.delta)?(r.delta>0?'+':'')+r.delta.toFixed(1)+'%':'—'}</td>
         <td class="n">${Math.round(r.quality*100)}%</td></tr>`; }).join('');
-  const likes = valid.filter(r=>r.rating>0).map(r=>r.delta), dis = valid.filter(r=>r.rating<0).map(r=>r.delta);
-  const avg = a => a.length ? a.reduce((x,y)=>x+y)/a.length : NaN;
-  const r = pearson(valid.map(v=>v.rating), valid.map(v=>v.delta));
-  const fmt = v => isFinite(v) ? (v>0?'+':'') + v.toFixed(1) + '%' : 'n/a';
-  let verdict;
-  if (valid.length < 4) verdict = 'Not enough reliable measurements. Try brighter, steadier lighting.';
-  else if (r > 0.3) verdict = '✅ Your pupils tended to <b>dilate more for things you like</b>.';
-  else if (r < -0.3) verdict = '🔄 Your pupils tended to dilate more for things you <b>dislike</b>. Strong negative feelings can cause dilation too, because pupils respond to arousal, not just liking.';
-  else verdict = '➖ No clear link between your ratings and pupil size this run.';
-  $('summary').innerHTML = `${verdict}<br><br>Avg Δ for liked items: <b>${fmt(avg(likes))}</b><br>Avg Δ for disliked items: <b>${fmt(avg(dis))}</b><br>Correlation (rating vs Δ): <b>${isFinite(r)?r.toFixed(2):'n/a'}</b> · ${valid.length}/${results.length} items reliable`;
+  $('tbl').querySelectorAll('canvas').forEach(c => { const p = pics.get(sorted[+c.dataset.k].item); if (p) c.getContext('2d').drawImage(p.img,0,0,44,44); });
+  const top = sorted.filter(ok);
+  $('summary').innerHTML = valid.length < 3 ? 'Not enough reliable measurements. Try brighter, steadier lighting and hold the phone still.'
+    : `Your pupils reacted most to <b>${esc(top[0].item)}</b> (${top[0].score.toFixed(1)}/10) and least to <b>${esc(top[top.length-1].item)}</b> (${top[top.length-1].score.toFixed(1)}/10).<br><br><span class="small">Scores are relative to the other items in this run. ${valid.length}/${results.length} items were measured reliably.</span>`;
 }
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 $('btnAgain').onclick = () => { $('results').classList.remove('on'); $('setup').classList.add('on'); };
 $('btnCopy').onclick = async () => {
-  const t = results.map(r => `${r.item}\t${r.rating}\t${isFinite(r.delta)?r.delta.toFixed(2):''}\t${Math.round(r.quality*100)}%`).join('\n');
-  try { await navigator.clipboard.writeText('item\trating\tdelta%\tquality\n' + t); $('btnCopy').textContent = 'Copied ✓'; } catch { $('btnCopy').textContent = 'Copy failed'; }
+  const t = results.map(r => `${r.item}\t${isFinite(r.score)?r.score.toFixed(1):''}\t${isFinite(r.delta)?r.delta.toFixed(2):''}\t${Math.round(r.quality*100)}%`).join('\n');
+  try { await navigator.clipboard.writeText('item\tscore\tdelta%\tquality\n' + t); $('btnCopy').textContent = 'Copied ✓'; } catch { $('btnCopy').textContent = 'Copy failed'; }
 };
 </script>
 </body>
